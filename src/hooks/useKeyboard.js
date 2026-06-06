@@ -28,6 +28,8 @@ export function useKeyboard({
   takeScreenshot,
   folderNext,
   folderPrev,
+  addBookmark,
+  toggleFilters,
   toggleShortcuts,
   closeMenus,
   getCurrentTime,
@@ -254,6 +256,16 @@ export function useKeyboard({
             folderPrev?.();
           }
           break;
+        case 'b':
+        case 'B':
+          e.preventDefault();
+          addBookmark?.();
+          break;
+        case 'v':
+        case 'V':
+          e.preventDefault();
+          toggleFilters?.();
+          break;
         default:
           if (e.key >= '0' && e.key <= '9') {
             e.preventDefault();
@@ -282,6 +294,8 @@ export function useKeyboard({
       takeScreenshot,
       folderNext,
       folderPrev,
+      addBookmark,
+      toggleFilters,
       toggleShortcuts,
       closeMenus,
       getCurrentTime,

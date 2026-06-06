@@ -7,6 +7,9 @@ import { useSleepTimer } from '../hooks/useSleepTimer';
 import { useToast } from '../hooks/useToast';
 import { useControlsVisibility } from '../hooks/useControlsVisibility';
 import { useDocumentPiP } from '../hooks/useDocumentPiP';
+import { useVideoFilters } from '../hooks/useVideoFilters';
+import { useGestures } from '../hooks/useGestures';
+import { useBookmarks } from '../hooks/useBookmarks';
 import { formatTime } from '../utils/formatTime';
 import { captureScreenshot } from '../utils/screenshot';
 import { loadAmbient, saveAmbient } from '../utils/storage';
@@ -41,6 +44,8 @@ export default function Player({
   const abRepeat = useABRepeat();
   const subtitles = useSubtitles(player.videoRef);
   const { isMiniPlayerActive, toggleMiniPlayer } = useDocumentPiP(player.videoRef, { showToast });
+  const videoFilters = useVideoFilters();
+  const bookmarks = useBookmarks(filename);
   const { controlsVisible, showControls, toggleControlsVisibility } = useControlsVisibility(
     containerRef,
     player.isPlaying
@@ -62,6 +67,32 @@ export default function Player({
       return next;
     });
   }, []);
+
+  // Gesture controls for touch devices
+  useGestures({
+    containerRef,
+    enabled: keyboardEnabled,
+    seekRelative: player.seekRelative,
+    changeVolume: player.changeVolume,
+    getVolume: () => player.volume,
+    togglePlay: player.togglePlay,
+    changeSpeed: player.changeSpeed,
+    getSpeed: () => player.speed,
+    onBrightnessChange: (val) => videoFilters.updateFilter('brightness', val),
+    getBrightness: () => videoFilters.filters.brightness,
+    onFeedback: triggerFeedback,
+    showControls,
+  });
+
+  const handleAddBookmark = useCallback(
+    async () => {
+      const time = player.videoRef.current?.currentTime;
+      if (time === undefined) return;
+      const bm = await bookmarks.add(time);
+      if (bm) showToast(`Bookmark added at ${formatTime(time)}`);
+    },
+    [bookmarks, player.videoRef, showToast]
+  );
 
   const cleanupVideo = useCallback(() => {
     const video = player.videoRef.current;
@@ -216,6 +247,8 @@ export default function Player({
     takeScreenshot: handleScreenshot,
     folderNext: folderPlayback?.onNext,
     folderPrev: folderPlayback?.onPrev,
+    addBookmark: handleAddBookmark,
+    toggleFilters: () => {}, // Handled by FilterPanel
     toggleShortcuts: () => setShortcutsOpen((v) => !v),
     closeMenus: () => setShortcutsOpen(false),
     getCurrentTime: () => player.videoRef.current?.currentTime || 0,
@@ -247,6 +280,7 @@ export default function Player({
           ref={player.videoRef}
           src={videoSrc}
           className="player-video"
+          style={videoFilters.filterStyle}
           onTimeUpdate={player.onTimeUpdate}
           onLoadedMetadata={player.onLoadedMetadata}
           onPlay={player.onPlay}
@@ -302,6 +336,10 @@ export default function Player({
         backLabel={backLabel}
         folderPlayback={folderPlayback}
         sleepTimer={sleepTimer}
+        videoFilters={videoFilters}
+        bookmarks={bookmarks}
+        onAddBookmark={handleAddBookmark}
+        getCurrentTime={() => player.videoRef.current?.currentTime || 0}
       />
 
       {player.resumePrompt !== null && (

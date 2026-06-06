@@ -22,6 +22,8 @@ import { loadTimeDisplayMode, saveTimeDisplayMode } from '../utils/storage';
 import { BTN_ICON } from '../utils/buttonClasses';
 import SpeedControl from './SpeedControl';
 import SleepTimerControl from './SleepTimerControl';
+import FilterPanel from './FilterPanel';
+import BookmarkPanel from './BookmarkPanel';
 
 export default function Controls({
   isPlaying,
@@ -56,6 +58,10 @@ export default function Controls({
   backLabel,
   folderPlayback,
   sleepTimer,
+  videoFilters,
+  bookmarks,
+  onAddBookmark,
+  getCurrentTime,
 }) {
   const seekBarRef = useRef(null);
   const volumeBarRef = useRef(null);
@@ -364,6 +370,30 @@ export default function Controls({
             </button>
 
             <SpeedControl speed={speed} onSpeedChange={onSpeedChange} />
+
+            {videoFilters && (
+              <FilterPanel
+                filters={videoFilters.filters}
+                activePreset={videoFilters.activePreset}
+                isDefault={videoFilters.isDefault}
+                onUpdateFilter={videoFilters.updateFilter}
+                onApplyPreset={videoFilters.applyPreset}
+                onReset={videoFilters.resetFilters}
+              />
+            )}
+
+            {bookmarks && (
+              <BookmarkPanel
+                bookmarks={bookmarks.bookmarks}
+                onAdd={bookmarks.add}
+                onRemove={bookmarks.remove}
+                onUpdateNote={bookmarks.updateNote}
+                onSeek={onSeek}
+                onExportMarkdown={bookmarks.exportAsMarkdown}
+                onExportText={bookmarks.exportAsText}
+                getCurrentTime={getCurrentTime}
+              />
+            )}
 
             <button
               type="button"

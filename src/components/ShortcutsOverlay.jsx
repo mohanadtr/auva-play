@@ -65,6 +65,23 @@ const SECTIONS = [
     title: 'Subtitles',
     rows: [{ keys: ['C'], action: 'Toggle subtitles' }],
   },
+  {
+    title: 'Bookmarks & Filters',
+    rows: [
+      { keys: ['B'], action: 'Add bookmark at current time' },
+      { keys: ['V'], action: 'Toggle video filters panel' },
+    ],
+  },
+  {
+    title: 'Touch Gestures',
+    rows: [
+      { keys: ['Double-tap ←'], action: 'Back 10 seconds' },
+      { keys: ['Double-tap →'], action: 'Forward 10 seconds' },
+      { keys: ['Swipe ↕ right'], action: 'Adjust volume' },
+      { keys: ['Swipe ↕ left'], action: 'Adjust brightness' },
+      { keys: ['Long press'], action: 'Temporary 2× speed' },
+    ],
+  },
 ];
 
 function KeyBadge({ children }) {
