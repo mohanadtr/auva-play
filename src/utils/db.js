@@ -226,7 +226,11 @@ export async function updateFolderFile(id, updates) {
   try {
     const existing = await getFolderFile(id);
     if (!existing) return null;
-    const updated = { ...existing, ...updates };
+    const updated = {
+      ...existing,
+      ...updates,
+      handle: updates.handle ?? existing.handle,
+    };
     const ok = await runTransaction(STORES.FOLDER_FILES, 'readwrite', (store) => {
       store.put(updated);
     });
@@ -307,6 +311,15 @@ export async function saveRecentFileHandle(record) {
 /** @param {string} name @returns {Promise<RecentFileRecord|null>} */
 export async function getRecentFileHandle(name) {
   return runTransaction(STORES.RECENT_FILES, 'readonly', (store) => runRequest(store.get(name)));
+}
+
+/** @returns {Promise<RecentFileRecord[]>} */
+export async function getAllRecentFileHandles() {
+  const records = await runTransaction(STORES.RECENT_FILES, 'readonly', (store) =>
+    runRequest(store.getAll())
+  );
+  if (!Array.isArray(records)) return [];
+  return records.sort((a, b) => (b.lastOpened ?? 0) - (a.lastOpened ?? 0));
 }
 
 /**

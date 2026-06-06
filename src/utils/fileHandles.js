@@ -1,4 +1,10 @@
-import { saveRecentFileHandle, getRecentFileHandle, openRecentFileHandle } from './db';
+import {
+  saveRecentFileHandle,
+  getRecentFileHandle,
+  openRecentFileHandle,
+  getAllRecentFileHandles,
+} from './db';
+import { cacheRecentHandle } from './handleCache';
 
 /**
  * @returns {boolean}
@@ -33,7 +39,20 @@ export const VIDEO_PICKER_OPTIONS_MULTIPLE = {
 
 /** @param {FileHandleRecord} record */
 export async function saveFileHandle(record) {
+  cacheRecentHandle(record.name, record.handle);
   return saveRecentFileHandle(record);
+}
+
+/** Pre-load recent handles into memory for instant open on click. */
+export async function warmRecentHandleCache() {
+  try {
+    const records = await getAllRecentFileHandles();
+    for (const record of records) {
+      if (record.handle) cacheRecentHandle(record.name, record.handle);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 /** @param {string} name */

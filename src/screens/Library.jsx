@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ChevronLeft, FileVideo, ArrowRight } from 'lucide-react';
 import { useFolders } from '../hooks/useFolders';
 import { getRecentFiles } from '../utils/storage';
@@ -7,6 +7,7 @@ import { openRecentFile } from '../utils/recentFileOpen';
 import {
   supportsFileSystemAccess,
   VIDEO_PICKER_OPTIONS,
+  warmRecentHandleCache,
 } from '../utils/fileHandles';
 import FolderCard from '../components/FolderCard';
 import NewFolderModal from '../components/NewFolderModal';
@@ -42,6 +43,10 @@ export default function Library({
 
   const refreshRecent = useCallback(() => {
     setRecentFiles(getRecentFiles());
+  }, []);
+
+  useEffect(() => {
+    warmRecentHandleCache();
   }, []);
 
   const openFilePicker = useCallback(async () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getFolderFiles,
   addFolderFile,
@@ -7,10 +7,24 @@ import {
   updateFolderFile,
 } from '../utils/db';
 import { generateThumbnail } from '../utils/thumbnail';
+import {
+  cacheFolderHandle,
+  getCachedFolderHandle,
+  removeCachedFolderHandle,
+  warmFolderHandleCache,
+} from '../utils/handleCache';
+
+function mergeFileHandles(files) {
+  return files.map((f) => ({
+    ...f,
+    handle: f.handle ?? getCachedFolderHandle(f.id),
+  }));
+}
 
 export function useFolderFiles(folderId) {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const folderIdRef = useRef(folderId);
 
   const refresh = useCallback(async () => {
     if (!folderId) {
@@ -21,7 +35,8 @@ export function useFolderFiles(folderId) {
     setLoading(true);
     try {
       const list = await getFolderFiles(folderId);
-      setFiles(list);
+      warmFolderHandleCache(list);
+      setFiles(mergeFileHandles(list));
     } catch {
       setFiles([]);
     } finally {
@@ -30,10 +45,11 @@ export function useFolderFiles(folderId) {
   }, [folderId]);
 
   useEffect(() => {
+    folderIdRef.current = folderId;
     refresh();
-  }, [refresh]);
+  }, [refresh, folderId]);
 
-  const generateAndSaveThumbnail = useCallback(async (record, file) => {
+  const generateAndSaveThumbnail = useCallback(async (record, file, handle) => {
     try {
       const { thumbnail, duration } = await generateThumbnail(file);
       const updates = {};
@@ -41,8 +57,17 @@ export function useFolderFiles(folderId) {
       if (duration != null && !Number.isNaN(duration)) updates.duration = duration;
       if (!Object.keys(updates).length) return;
 
+      const handleToKeep = handle ?? getCachedFolderHandle(record.id) ?? record.handle;
+      if (handleToKeep) updates.handle = handleToKeep;
+
       await updateFolderFile(record.id, updates);
-      setFiles((prev) => prev.map((f) => (f.id === record.id ? { ...f, ...updates } : f)));
+      if (handleToKeep) cacheFolderHandle(record.id, handleToKeep);
+
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === record.id ? { ...f, ...updates, handle: handleToKeep ?? f.handle } : f
+        )
+      );
     } catch {
       /* non-blocking */
     }
@@ -54,15 +79,21 @@ export function useFolderFiles(folderId) {
       for (const { file, handle } of entries) {
         try {
           const record = await addFolderFile(folderId, file, handle);
-          if (record) added.push({ record, file });
+          if (record) {
+            if (handle) {
+              cacheFolderHandle(record.id, handle);
+              record.handle = handle;
+            }
+            added.push({ record, file, handle });
+          }
         } catch {
           /* skip failed entry */
         }
       }
       await refresh();
 
-      for (const { record, file } of added) {
-        generateAndSaveThumbnail(record, file);
+      for (const { record, file, handle } of added) {
+        generateAndSaveThumbnail(record, file, handle);
       }
     },
     [folderId, refresh, generateAndSaveThumbnail]
@@ -71,6 +102,7 @@ export function useFolderFiles(folderId) {
   const removeFile = useCallback(
     async (id) => {
       try {
+        removeCachedFolderHandle(id);
         await deleteFolderFile(id);
         const remaining = await getFolderFiles(folderId);
         await reorderFolderFiles(
@@ -97,5 +129,9 @@ export function useFolderFiles(folderId) {
     [folderId, refresh]
   );
 
-  return { files, loading, refresh, addFiles, removeFile, reorder };
+  const resolveHandle = useCallback((fileRecord) => {
+    return fileRecord.handle ?? getCachedFolderHandle(fileRecord.id);
+  }, []);
+
+  return { files, loading, refresh, addFiles, removeFile, reorder, resolveHandle };
 }

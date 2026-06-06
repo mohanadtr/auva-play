@@ -1,5 +1,6 @@
 import { getRecentFileHandle, saveRecentFileHandle } from './db';
 import { openFileWithPermission } from './openFileWithPermission';
+import { getCachedRecentHandle, cacheRecentHandle } from './handleCache';
 
 /**
  * Open a recent file entry (localStorage metadata + IndexedDB handle).
@@ -12,15 +13,21 @@ export async function openRecentFile(recent, { onPlayFile, onPlayUrl, onFallback
     return;
   }
 
-  const record = await getRecentFileHandle(recent.name);
+  let handle = getCachedRecentHandle(recent.name);
 
-  if (!record?.handle) {
+  if (!handle) {
+    const record = await getRecentFileHandle(recent.name);
+    handle = record?.handle ?? null;
+    if (handle) cacheRecentHandle(recent.name, handle);
+  }
+
+  if (!handle) {
     showToast?.('No saved file access. Please select the file manually.');
     return;
   }
 
   try {
-    const { file, denied } = await openFileWithPermission(record.handle);
+    const { file, denied } = await openFileWithPermission(handle);
 
     if (denied) {
       showToast?.('Permission denied.');
@@ -33,14 +40,15 @@ export async function openRecentFile(recent, { onPlayFile, onPlayUrl, onFallback
       return;
     }
 
+    cacheRecentHandle(recent.name, handle);
     await saveRecentFileHandle({
-      handle: record.handle,
+      handle,
       name: file.name,
       size: file.size,
       lastOpened: Date.now(),
     });
 
-    onPlayFile(file, record.handle);
+    onPlayFile(file, handle);
   } catch (err) {
     if (err?.name === 'AbortError') return;
     showToast?.('Could not reopen file. Please select it manually.');

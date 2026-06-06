@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft } from 'lucide-react';
-import { getFolder, getFolderFile } from '../utils/db';
+import { getFolder } from '../utils/db';
 import { openFileWithPermission } from '../utils/openFileWithPermission';
 import { useFolderFiles } from '../hooks/useFolderFiles';
 import {
@@ -15,7 +15,7 @@ const ACCEPTED_EXT = ['.mp4', '.webm', '.mkv', '.mov'];
 
 export default function FolderView({ folderId, onBack, onPlayFile, showToast }) {
   const [folderName, setFolderName] = useState('');
-  const { files, loading, addFiles, removeFile } = useFolderFiles(folderId);
+  const { files, loading, addFiles, removeFile, resolveHandle } = useFolderFiles(folderId);
 
   useEffect(() => {
     getFolder(folderId).then((f) => setFolderName(f?.name ?? 'Folder'));
@@ -55,35 +55,32 @@ export default function FolderView({ folderId, onBack, onPlayFile, showToast }) 
   }, [addFiles, showToast]);
 
   const handleOpen = useCallback(
-    async (fileRecord) => {
-      try {
-        const record = await getFolderFile(fileRecord.id);
-        const handle = record?.handle;
+    (fileRecord) => {
+      const handle = resolveHandle(fileRecord);
 
-        if (!handle) {
-          showToast?.('Could not open file. Try adding it again.');
-          return;
-        }
-
-        const { file, denied } = await openFileWithPermission(handle);
-
-        if (denied) {
-          showToast?.('Permission denied. Please try again.');
-          return;
-        }
-
-        if (!file) {
-          showToast?.('Could not open file. Try adding it again.');
-          return;
-        }
-
-        onPlayFile(file, handle, { folderId, folderFileId: record.id, folderName });
-      } catch (err) {
-        if (err?.name === 'AbortError') return;
-        showToast?.('Could not open file. Try adding it again.');
+      if (!handle) {
+        showToast?.('File access not saved. Remove and re-add this file using "Add files".');
+        return;
       }
+
+      openFileWithPermission(handle)
+        .then(({ file, denied }) => {
+          if (denied) {
+            showToast?.('Permission denied. Please try again.');
+            return;
+          }
+          if (!file) {
+            showToast?.('Could not open file. Try adding it again.');
+            return;
+          }
+          onPlayFile(file, handle, { folderId, folderFileId: fileRecord.id, folderName });
+        })
+        .catch((err) => {
+          if (err?.name === 'AbortError') return;
+          showToast?.('Could not open file. Try adding it again.');
+        });
     },
-    [onPlayFile, folderId, folderName, showToast]
+    [resolveHandle, onPlayFile, folderId, folderName, showToast]
   );
 
   return (

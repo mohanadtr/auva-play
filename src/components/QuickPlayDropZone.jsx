@@ -6,6 +6,7 @@ import {
   supportsFileSystemAccess,
   VIDEO_PICKER_OPTIONS,
   saveFileHandle,
+  warmRecentHandleCache,
 } from '../utils/fileHandles';
 import { openRecentFile } from '../utils/recentFileOpen';
 
@@ -43,6 +44,7 @@ export default function QuickPlayDropZone({
 
   useEffect(() => {
     refreshRecent();
+    warmRecentHandleCache();
   }, [refreshRecent]);
 
   useEffect(() => {
