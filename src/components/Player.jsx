@@ -1,0 +1,344 @@
+import { useRef, useState, useCallback, useEffect } from 'react';
+import { useVideoPlayer } from '../hooks/useVideoPlayer';
+import { useABRepeat } from '../hooks/useABRepeat';
+import { useKeyboard } from '../hooks/useKeyboard';
+import { useSubtitles } from '../hooks/useSubtitles';
+import { useSleepTimer } from '../hooks/useSleepTimer';
+import { useToast } from '../hooks/useToast';
+import { formatTime } from '../utils/formatTime';
+import { captureScreenshot } from '../utils/screenshot';
+import { BTN_PRIMARY, BTN_SECONDARY } from '../utils/buttonClasses';
+import Controls from './Controls';
+import ShortcutsOverlay from './ShortcutsOverlay';
+import Toast from './Toast';
+import VideoSpinner from './VideoSpinner';
+
+export default function Player({
+  source,
+  onBack,
+  backLabel = 'Home',
+  folderPlayback = null,
+  keyboardEnabled = true,
+  onVideoLoadError,
+}) {
+  const containerRef = useRef(null);
+  const idleTimerRef = useRef(null);
+  const videoClickTimerRef = useRef(null);
+  const objectUrlRef = useRef(null);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [videoSrc, setVideoSrc] = useState(null);
+  const [isVideoLoading, setIsVideoLoading] = useState(true);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const { toast, showToast } = useToast();
+
+  const { filename } = source;
+  const player = useVideoPlayer(filename);
+  const abRepeat = useABRepeat();
+  const subtitles = useSubtitles(player.videoRef);
+
+  const sleepTimer = useSleepTimer(() => {
+    player.videoRef.current?.pause();
+    showToast('Sleep timer ended');
+  });
+
+  const cleanupVideo = useCallback(() => {
+    const video = player.videoRef.current;
+    if (video) {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    }
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+  }, [player.videoRef]);
+
+  useEffect(() => {
+    subtitles.clear();
+  }, [filename]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setIsVideoLoading(true);
+
+    if (source.type === 'file' && source.file) {
+      const url = URL.createObjectURL(source.file);
+      objectUrlRef.current = url;
+      setVideoSrc(url);
+    } else if (source.type === 'url' && source.url) {
+      setVideoSrc(source.url);
+    } else {
+      setVideoSrc(null);
+    }
+
+    return () => {
+      cleanupVideo();
+    };
+  }, [source, cleanupVideo]);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(idleTimerRef.current);
+      clearTimeout(videoClickTimerRef.current);
+      sleepTimer.clear();
+      subtitles.clear();
+      cleanupVideo();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!abRepeat.isActive) return;
+    const video = player.videoRef.current;
+    if (!video) return;
+    const handleTimeUpdate = () => {
+      if (video.currentTime >= abRepeat.pointB) video.currentTime = abRepeat.pointA;
+    };
+    video.addEventListener('timeupdate', handleTimeUpdate);
+    return () => video.removeEventListener('timeupdate', handleTimeUpdate);
+  }, [abRepeat.isActive, abRepeat.pointA, abRepeat.pointB, player.videoRef]);
+
+  useEffect(() => {
+    const video = player.videoRef.current;
+    if (!video || !folderPlayback || player.loop) return;
+    const handleEnded = () => {
+      if (folderPlayback.hasNext) folderPlayback.onNext();
+    };
+    video.addEventListener('ended', handleEnded);
+    return () => video.removeEventListener('ended', handleEnded);
+  }, [folderPlayback, player.loop, player.videoRef]);
+
+  const showControls = useCallback(() => {
+    setControlsVisible(true);
+    clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      if (player.isPlaying) setControlsVisible(false);
+    }, 2000);
+  }, [player.isPlaying]);
+
+  const toggleControlsVisibility = useCallback(() => {
+    setControlsVisible((prev) => {
+      const next = !prev;
+      clearTimeout(idleTimerRef.current);
+      if (next && player.isPlaying) {
+        idleTimerRef.current = setTimeout(() => setControlsVisible(false), 2000);
+      }
+      return next;
+    });
+  }, [player.isPlaying]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const onMove = () => showControls();
+    const onLeave = () => {
+      if (player.isPlaying) setControlsVisible(false);
+    };
+    container.addEventListener('mousemove', onMove);
+    container.addEventListener('mouseleave', onLeave);
+    return () => {
+      container.removeEventListener('mousemove', onMove);
+      container.removeEventListener('mouseleave', onLeave);
+      clearTimeout(idleTimerRef.current);
+    };
+  }, [showControls, player.isPlaying]);
+
+  useEffect(() => {
+    if (!player.isPlaying) {
+      setControlsVisible(true);
+      clearTimeout(idleTimerRef.current);
+    }
+  }, [player.isPlaying]);
+
+  useEffect(() => {
+    const onKey = () => showControls();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showControls]);
+
+  const handleScreenshot = useCallback(() => {
+    const video = player.videoRef.current;
+    if (!video) return;
+    captureScreenshot(video);
+    showToast('Screenshot saved');
+  }, [player.videoRef, showToast]);
+
+  const handleSubtitleDrop = useCallback(
+    async (e) => {
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext === 'srt' || ext === 'vtt') {
+        e.preventDefault();
+        await subtitles.loadFile(file);
+      }
+    },
+    [subtitles]
+  );
+
+  const handleDoubleClick = useCallback(() => {
+    clearTimeout(videoClickTimerRef.current);
+    player.toggleFullscreen(containerRef);
+  }, [player]);
+
+  const handleVideoClick = useCallback(() => {
+    clearTimeout(videoClickTimerRef.current);
+    videoClickTimerRef.current = setTimeout(() => {
+      toggleControlsVisibility();
+    }, 220);
+  }, [toggleControlsVisibility]);
+
+  const handleWheel = useCallback(
+    (e) => {
+      if (shortcutsOpen || e.target.closest('.shortcuts-card')) return;
+
+      e.preventDefault();
+      let delta = e.deltaY;
+      if (e.deltaMode === 1) delta *= 16;
+      else if (e.deltaMode === 2) delta *= window.innerHeight;
+
+      const change = -delta * 0.003;
+      if (Math.abs(change) < 0.005) return;
+
+      player.changeVolume(player.volume + Math.sign(change) * Math.min(Math.abs(change), 0.08));
+      showControls();
+    },
+    [player, showControls, shortcutsOpen]
+  );
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const opts = { passive: false, capture: true };
+    el.addEventListener('wheel', handleWheel, opts);
+    return () => el.removeEventListener('wheel', handleWheel, opts);
+  }, [handleWheel]);
+
+  const handleCanPlay = useCallback(() => {
+    setIsVideoLoading(false);
+  }, []);
+
+  const handleVideoError = useCallback(() => {
+    setIsVideoLoading(false);
+    onVideoLoadError?.(source.type);
+  }, [onVideoLoadError, source.type]);
+
+  useKeyboard({
+    togglePlay: player.togglePlay,
+    seekRelative: player.seekRelative,
+    seek: player.seek,
+    changeVolume: player.changeVolume,
+    toggleMute: player.toggleMute,
+    toggleFullscreen: () => player.toggleFullscreen(containerRef),
+    changeSpeed: player.changeSpeed,
+    setSpeed: player.setSpeed,
+    setA: abRepeat.setA,
+    setB: abRepeat.setB,
+    clearAB: abRepeat.clear,
+    togglePiP: player.togglePiP,
+    toggleLoop: player.toggleLoop,
+    toggleSubtitles: subtitles.toggle,
+    takeScreenshot: handleScreenshot,
+    folderNext: folderPlayback?.onNext,
+    folderPrev: folderPlayback?.onPrev,
+    toggleShortcuts: () => setShortcutsOpen((v) => !v),
+    closeMenus: () => setShortcutsOpen(false),
+    getCurrentTime: () => player.videoRef.current?.currentTime || 0,
+    getDuration: () => player.duration,
+    getVolume: () => player.volume,
+    getSpeed: () => player.speed,
+    isPlaying: () => player.isPlaying,
+    containerRef,
+    hasVideo: keyboardEnabled,
+    isABActive: abRepeat.isActive,
+    isFullscreen: player.isFullscreen,
+    shortcutsOpen,
+    hasFolderContext: !!folderPlayback,
+  });
+
+  return (
+    <div
+      ref={containerRef}
+      className="player-shell"
+      style={{ cursor: controlsVisible ? 'default' : 'none' }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleSubtitleDrop}
+    >
+      <video
+        ref={player.videoRef}
+        src={videoSrc}
+        className="player-video"
+        onTimeUpdate={player.onTimeUpdate}
+        onLoadedMetadata={player.onLoadedMetadata}
+        onPlay={player.onPlay}
+        onPause={player.onPause}
+        onProgress={player.onProgress}
+        onCanPlay={handleCanPlay}
+        onError={handleVideoError}
+        onClick={handleVideoClick}
+        onDoubleClick={handleDoubleClick}
+        playsInline
+        crossOrigin={source.type === 'url' ? 'anonymous' : undefined}
+      >
+        {subtitles.trackUrl && (
+          <track kind="subtitles" src={subtitles.trackUrl} srcLang="en" label="Subtitles" default />
+        )}
+      </video>
+
+      {isVideoLoading && <VideoSpinner />}
+
+      <Controls
+        isPlaying={player.isPlaying}
+        currentTime={player.currentTime}
+        duration={player.duration}
+        volume={player.volume}
+        isMuted={player.isMuted}
+        speed={player.speed}
+        isFullscreen={player.isFullscreen}
+        buffered={player.buffered}
+        loop={player.loop}
+        subtitlesEnabled={subtitles.enabled}
+        hasSubtitles={subtitles.hasSubtitles}
+        visible={controlsVisible}
+        onTogglePlay={player.togglePlay}
+        onToggleControls={toggleControlsVisibility}
+        onSeek={player.seek}
+        onVolumeChange={player.changeVolume}
+        onToggleMute={player.toggleMute}
+        onSpeedChange={player.changeSpeed}
+        onToggleFullscreen={() => player.toggleFullscreen(containerRef)}
+        onTogglePiP={player.togglePiP}
+        onToggleLoop={player.toggleLoop}
+        onToggleSubtitles={subtitles.toggle}
+        onLoadSubtitles={subtitles.loadFile}
+        onScreenshot={handleScreenshot}
+        onToggleShortcuts={() => setShortcutsOpen((v) => !v)}
+        onBack={onBack}
+        backLabel={backLabel}
+        folderPlayback={folderPlayback}
+        sleepTimer={sleepTimer}
+      />
+
+      {player.resumePrompt !== null && (
+        <div className="modal-overlay">
+          <div className="card" style={{ maxWidth: 360, width: '100%', margin: '0 24px' }}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>Resume playback?</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4 }}>
+              You were at {formatTime(player.resumePrompt)}
+            </p>
+            <div style={{ marginTop: 20, display: 'flex', gap: 8 }}>
+              <button type="button" onClick={() => player.handleResume(true)} className={`${BTN_PRIMARY} flex-1`}>
+                Resume
+              </button>
+              <button type="button" onClick={() => player.handleResume(false)} className={`${BTN_SECONDARY} flex-1`}>
+                Start Over
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {shortcutsOpen && <ShortcutsOverlay onClose={() => setShortcutsOpen(false)} />}
+      <Toast toast={toast} />
+    </div>
+  );
+}
