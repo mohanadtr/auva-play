@@ -1,71 +1,25 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  DragOverlay,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
+import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft } from 'lucide-react';
-import { getFolder } from '../utils/db';
+import { getFolder, getFolderFile } from '../utils/db';
+import { openFileWithPermission } from '../utils/openFileWithPermission';
 import { useFolderFiles } from '../hooks/useFolderFiles';
 import {
   supportsFileSystemAccess,
   VIDEO_PICKER_OPTIONS_MULTIPLE,
 } from '../utils/fileHandles';
-import FileRow from '../components/FileRow';
-import FileRowSkeleton from '../components/FileRowSkeleton';
+import VideoCard from '../components/VideoCard';
+import VideoCardSkeleton from '../components/VideoCardSkeleton';
 import { BTN_PRIMARY } from '../utils/buttonClasses';
 
 const ACCEPTED_EXT = ['.mp4', '.webm', '.mkv', '.mov'];
 
 export default function FolderView({ folderId, onBack, onPlayFile, showToast }) {
   const [folderName, setFolderName] = useState('');
-  const [activeId, setActiveId] = useState(null);
-  const { files, loading, addFiles, removeFile, reorder, openFile } = useFolderFiles(folderId);
+  const { files, loading, addFiles, removeFile } = useFolderFiles(folderId);
 
   useEffect(() => {
     getFolder(folderId).then((f) => setFolderName(f?.name ?? 'Folder'));
   }, [folderId]);
-
-  const isTouch = useMemo(
-    () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches,
-    []
-  );
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: isTouch ? { delay: 500, tolerance: 8 } : { distance: 6 },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 500, tolerance: 8 },
-    }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-
-  const handleDragEnd = useCallback(
-    (event) => {
-      const { active, over } = event;
-      setActiveId(null);
-      if (!over || active.id === over.id) return;
-      const oldIndex = files.findIndex((f) => f.id === active.id);
-      const newIndex = files.findIndex((f) => f.id === over.id);
-      if (oldIndex === -1 || newIndex === -1) return;
-      const reordered = [...files];
-      const [moved] = reordered.splice(oldIndex, 1);
-      reordered.splice(newIndex, 0, moved);
-      reorder(reordered.map((f) => f.id));
-    },
-    [files, reorder]
-  );
 
   const handleAddFiles = useCallback(async () => {
     if (supportsFileSystemAccess()) {
@@ -100,21 +54,37 @@ export default function FolderView({ folderId, onBack, onPlayFile, showToast }) 
     input.click();
   }, [addFiles, showToast]);
 
-  const handlePlay = useCallback(
-    async (record) => {
-      const { file, denied } = await openFile(record);
-      if (denied) {
-        showToast?.('Access to this file was denied.');
-        return;
-      }
-      if (file) {
-        onPlayFile(file, record.handle, { folderId, folderFileId: record.id, folderName });
+  const handleOpen = useCallback(
+    async (fileRecord) => {
+      try {
+        const record = await getFolderFile(fileRecord.id);
+        const handle = record?.handle;
+
+        if (!handle) {
+          showToast?.('Could not open file. Try adding it again.');
+          return;
+        }
+
+        const { file, denied } = await openFileWithPermission(handle);
+
+        if (denied) {
+          showToast?.('Permission denied. Please try again.');
+          return;
+        }
+
+        if (!file) {
+          showToast?.('Could not open file. Try adding it again.');
+          return;
+        }
+
+        onPlayFile(file, handle, { folderId, folderFileId: record.id, folderName });
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+        showToast?.('Could not open file. Try adding it again.');
       }
     },
-    [openFile, onPlayFile, folderId, folderName, showToast]
+    [onPlayFile, folderId, folderName, showToast]
   );
-
-  const activeFile = files.find((f) => f.id === activeId);
 
   return (
     <div className="folder-view-screen">
@@ -129,12 +99,12 @@ export default function FolderView({ folderId, onBack, onPlayFile, showToast }) 
         </button>
       </header>
 
-      <main className="folder-view-body">
+      <main className="folder-view-body custom-scroll">
         {loading ? (
-          <div className="file-list">
-            <FileRowSkeleton />
-            <FileRowSkeleton />
-            <FileRowSkeleton />
+          <div className="video-card-grid">
+            <VideoCardSkeleton />
+            <VideoCardSkeleton />
+            <VideoCardSkeleton />
           </div>
         ) : files.length === 0 ? (
           <div className="folder-view-empty">
@@ -145,32 +115,11 @@ export default function FolderView({ folderId, onBack, onPlayFile, showToast }) 
             </button>
           </div>
         ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={(e) => setActiveId(e.active.id)}
-            onDragEnd={handleDragEnd}
-            onDragCancel={() => setActiveId(null)}
-          >
-            <SortableContext items={files.map((f) => f.id)} strategy={verticalListSortingStrategy}>
-              <div className="file-list">
-                {files.map((file) => (
-                  <FileRow
-                    key={file.id}
-                    file={file}
-                    onPlay={handlePlay}
-                    onDelete={removeFile}
-                    isTouch={isTouch}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-            <DragOverlay>
-              {activeFile ? (
-                <FileRow file={activeFile} onPlay={() => {}} onDelete={() => {}} isOverlay isTouch={isTouch} />
-              ) : null}
-            </DragOverlay>
-          </DndContext>
+          <div className="video-card-grid">
+            {files.map((file) => (
+              <VideoCard key={file.id} file={file} onOpen={handleOpen} onDelete={removeFile} />
+            ))}
+          </div>
         )}
       </main>
     </div>

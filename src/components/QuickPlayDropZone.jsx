@@ -6,8 +6,8 @@ import {
   supportsFileSystemAccess,
   VIDEO_PICKER_OPTIONS,
   saveFileHandle,
-  openFileFromHandle,
 } from '../utils/fileHandles';
+import { openRecentFile } from '../utils/recentFileOpen';
 
 const ACCEPTED_TYPES = ['.mp4', '.webm', '.mkv', '.mov'];
 const ACCEPTED_MIME = ['video/mp4', 'video/webm', 'video/x-matroska', 'video/quicktime'];
@@ -152,28 +152,20 @@ export default function QuickPlayDropZone({
 
   const handleRecentClick = useCallback(
     async (recent) => {
-      if (recent.url) {
-        onClearUrlError?.();
-        onUrlSelect(recent.url);
-        refreshRecent();
-        return;
-      }
-      if (supportsFileSystemAccess()) {
-        const { file, denied, handle } = await openFileFromHandle(recent.name);
-        if (denied) {
-          showToast?.('Access to this file was denied.');
-          await pickFileWithNativePicker();
-          return;
-        }
-        if (file && validateFile(file)) {
+      onClearUrlError?.();
+      await openRecentFile(recent, {
+        onPlayFile: (file, handle) => {
+          if (!validateFile(file)) return;
           onFileSelect(file, handle);
           refreshRecent();
-          return;
-        }
-        await pickFileWithNativePicker();
-        return;
-      }
-      fileInputRef.current?.click();
+        },
+        onPlayUrl: (url) => {
+          onUrlSelect(url);
+          refreshRecent();
+        },
+        onFallbackPicker: pickFileWithNativePicker,
+        showToast,
+      });
     },
     [onUrlSelect, onFileSelect, validateFile, pickFileWithNativePicker, refreshRecent, showToast, onClearUrlError]
   );

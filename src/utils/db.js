@@ -1,3 +1,5 @@
+import { openFileWithPermission } from './openFileWithPermission';
+
 const DB_NAME = 'auva-play-db';
 const DB_VERSION = 1;
 
@@ -159,7 +161,9 @@ export async function deleteFolder(id) {
  *   size: number,
  *   addedAt: number,
  *   order: number,
- *   handle: FileSystemFileHandle,
+ *   handle?: FileSystemFileHandle,
+ *   thumbnail?: string,
+ *   duration?: number,
  * }} FolderFile
  */
 
@@ -217,6 +221,21 @@ export async function getFolderFile(id) {
   return runTransaction(STORES.FOLDER_FILES, 'readonly', (store) => runRequest(store.get(id)));
 }
 
+/** @returns {Promise<FolderFile|null>} */
+export async function updateFolderFile(id, updates) {
+  try {
+    const existing = await getFolderFile(id);
+    if (!existing) return null;
+    const updated = { ...existing, ...updates };
+    const ok = await runTransaction(STORES.FOLDER_FILES, 'readwrite', (store) => {
+      store.put(updated);
+    });
+    return ok !== null ? updated : null;
+  } catch {
+    return null;
+  }
+}
+
 /** @returns {Promise<boolean>} */
 export async function deleteFolderFile(id) {
   const ok = await runTransaction(STORES.FOLDER_FILES, 'readwrite', (store) => {
@@ -259,11 +278,9 @@ export async function reorderFolderFiles(folderId, orderedIds) {
 export async function openFolderFile(record) {
   try {
     if (!record?.handle) return { file: null, denied: false };
-    const permission = await record.handle.requestPermission({ mode: 'read' });
-    if (permission !== 'granted') return { file: null, denied: true };
-    const file = await record.handle.getFile();
-    return { file, denied: false };
-  } catch {
+    return openFileWithPermission(record.handle);
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
     return { file: null, denied: false };
   }
 }
@@ -300,17 +317,18 @@ export async function openRecentFileHandle(name) {
   try {
     const record = await getRecentFileHandle(name);
     if (!record?.handle) return { file: null, denied: false };
-    const permission = await record.handle.requestPermission({ mode: 'read' });
-    if (permission !== 'granted') return { file: null, denied: true };
-    const file = await record.handle.getFile();
-    await saveRecentFileHandle({
-      handle: record.handle,
-      name: file.name,
-      size: file.size,
-      lastOpened: Date.now(),
-    });
-    return { file, denied: false };
-  } catch {
+    const result = await openFileWithPermission(record.handle);
+    if (result.file) {
+      await saveRecentFileHandle({
+        handle: record.handle,
+        name: result.file.name,
+        size: result.file.size,
+        lastOpened: Date.now(),
+      });
+    }
+    return result;
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
     return { file: null, denied: false };
   }
 }

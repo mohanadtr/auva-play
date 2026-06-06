@@ -217,8 +217,11 @@ export default function App() {
           onBack={goHome}
           onOpenFolder={goToFolder}
           onFolderCreated={goToFolder}
+          onPlayFile={(file, handle) => playFile(file, handle)}
+          onPlayUrl={playUrl}
           installPrompt={installPrompt}
           onInstall={handleInstall}
+          showToast={showToast}
         />
       )}
 

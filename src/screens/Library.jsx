@@ -1,32 +1,84 @@
-import { useState } from 'react';
-import { ChevronLeft } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { ChevronLeft, FileVideo, ArrowRight } from 'lucide-react';
 import { useFolders } from '../hooks/useFolders';
+import { getRecentFiles } from '../utils/storage';
+import { formatFileSize } from '../utils/formatFileSize';
+import { openRecentFile } from '../utils/recentFileOpen';
+import {
+  supportsFileSystemAccess,
+  VIDEO_PICKER_OPTIONS,
+} from '../utils/fileHandles';
 import FolderCard from '../components/FolderCard';
 import NewFolderModal from '../components/NewFolderModal';
 import InstallBanner from '../components/InstallBanner';
 import { BTN_PRIMARY, BTN_SECONDARY } from '../utils/buttonClasses';
 
-function isPwaInstalled() {
-  return (
-    window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
-  );
-}
-
 function FolderCardSkeleton() {
   return <div className="folder-card-skeleton" aria-hidden />;
 }
 
-export default function Library({ onBack, onOpenFolder, onFolderCreated, installPrompt, onInstall }) {
+function truncateName(name, max = 26) {
+  if (name.length <= max) return name;
+  const ext = name.includes('.') ? name.slice(name.lastIndexOf('.')) : '';
+  const base = name.slice(0, name.length - ext.length);
+  const available = max - ext.length - 1;
+  if (available <= 0) return name.slice(0, max - 1) + '…';
+  return base.slice(0, available) + '…' + ext;
+}
+
+export default function Library({
+  onBack,
+  onOpenFolder,
+  onFolderCreated,
+  onPlayFile,
+  onPlayUrl,
+  installPrompt,
+  onInstall,
+  showToast,
+}) {
   const { folders, fileCounts, loading, createFolder, renameFolder, removeFolder } = useFolders();
   const [modalOpen, setModalOpen] = useState(false);
+  const [recentFiles, setRecentFiles] = useState(() => getRecentFiles());
+
+  const refreshRecent = useCallback(() => {
+    setRecentFiles(getRecentFiles());
+  }, []);
+
+  const openFilePicker = useCallback(async () => {
+    if (!supportsFileSystemAccess()) return;
+    try {
+      const [handle] = await window.showOpenFilePicker(VIDEO_PICKER_OPTIONS);
+      const file = await handle.getFile();
+      onPlayFile?.(file, handle);
+      refreshRecent();
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+    }
+  }, [onPlayFile, refreshRecent]);
+
+  const handleRecentClick = useCallback(
+    async (recent) => {
+      await openRecentFile(recent, {
+        onPlayFile: (file, handle) => {
+          onPlayFile?.(file, handle);
+          refreshRecent();
+        },
+        onPlayUrl: (url) => {
+          onPlayUrl?.(url);
+          refreshRecent();
+        },
+        onFallbackPicker: openFilePicker,
+        showToast,
+      });
+    },
+    [onPlayFile, onPlayUrl, openFilePicker, refreshRecent, showToast]
+  );
 
   const handleCreate = async (name) => {
     const folder = await createFolder(name);
     setModalOpen(false);
     if (folder) onFolderCreated(folder.id);
   };
-
-  const isStandalone = isPwaInstalled();
 
   return (
     <div className="library-screen">
@@ -38,12 +90,6 @@ export default function Library({ onBack, onOpenFolder, onFolderCreated, install
         </button>
         <div className="library-brand-wrap">
           <h1 className="library-brand">Auva Play</h1>
-          {isStandalone && (
-            <span className="library-standalone-badge">
-              <span className="library-standalone-dot" aria-hidden />
-              Ready to open files
-            </span>
-          )}
         </div>
         <button type="button" className={BTN_SECONDARY} onClick={() => setModalOpen(true)}>
           New Folder
@@ -81,6 +127,30 @@ export default function Library({ onBack, onOpenFolder, onFolderCreated, install
               ))}
             </div>
           </>
+        )}
+
+        {recentFiles.length > 0 && (
+          <div className="recent-section">
+            <p className="recent-label">Recent</p>
+            <div className="recent-list">
+              {recentFiles.map((recent) => (
+                <button
+                  key={`${recent.name}-${recent.openedAt}`}
+                  type="button"
+                  onClick={() => handleRecentClick(recent)}
+                  className="recent-item"
+                  title={recent.url ? recent.url : recent.name}
+                >
+                  <FileVideo size={16} color="var(--text-3)" />
+                  <span className="recent-item__name">{truncateName(recent.name)}</span>
+                  {recent.size > 0 && (
+                    <span className="recent-item__size">{formatFileSize(recent.size)}</span>
+                  )}
+                  <ArrowRight size={14} className="recent-item__arrow" />
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </main>
 
