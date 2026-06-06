@@ -101,5 +101,29 @@ export const ActionFeedback = forwardRef(function ActionFeedback(_props, ref) {
     );
   }
 
+  if (type === 'brightness') {
+    const pct = value.brightness;
+    return (
+      <div className="action-feedback" aria-hidden>
+        <div className="action-feedback__volume-anchor" style={{ left: 20, right: 'auto' }}>
+          <div key={animKey} className="action-feedback__volume action-feedback__pulse">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+            <span>{pct}%</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return null;
 });
