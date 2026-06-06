@@ -61,6 +61,7 @@ export default function Controls({
   const [hoverPosition, setHoverPosition] = useState(0);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [volumeSliderHover, setVolumeSliderHover] = useState(false);
+  const [isVolumeDragging, setIsVolumeDragging] = useState(false);
   const [timeDisplayMode, setTimeDisplayMode] = useState(loadTimeDisplayMode);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -118,14 +119,46 @@ export default function Controls({
     [duration, handleSeekBarClick, onSeek]
   );
 
-  const handleVolumeClick = useCallback(
-    (e) => {
+  const updateVolumeFromClientX = useCallback(
+    (clientX) => {
       const rect = volumeBarRef.current?.getBoundingClientRect();
       if (!rect) return;
-      const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
       onVolumeChange(x / rect.width);
     },
     [onVolumeChange]
+  );
+
+  const handleVolumePointerDown = useCallback(
+    (e) => {
+      e.preventDefault();
+      setIsVolumeDragging(true);
+      setShowVolumeSlider(true);
+      setVolumeSliderHover(true);
+      updateVolumeFromClientX(e.clientX);
+
+      const pointerId = e.pointerId;
+      volumeBarRef.current?.setPointerCapture(pointerId);
+
+      const handlePointerMove = (ev) => {
+        if (ev.pointerId !== pointerId) return;
+        updateVolumeFromClientX(ev.clientX);
+      };
+
+      const handlePointerUp = (ev) => {
+        if (ev.pointerId !== pointerId) return;
+        setIsVolumeDragging(false);
+        volumeBarRef.current?.releasePointerCapture(pointerId);
+        volumeBarRef.current?.removeEventListener('pointermove', handlePointerMove);
+        volumeBarRef.current?.removeEventListener('pointerup', handlePointerUp);
+        volumeBarRef.current?.removeEventListener('pointercancel', handlePointerUp);
+      };
+
+      volumeBarRef.current?.addEventListener('pointermove', handlePointerMove);
+      volumeBarRef.current?.addEventListener('pointerup', handlePointerUp);
+      volumeBarRef.current?.addEventListener('pointercancel', handlePointerUp);
+    },
+    [updateVolumeFromClientX]
   );
 
   const handleSubtitleFile = useCallback(
@@ -213,6 +246,7 @@ export default function Controls({
               className="volume-control"
               onMouseEnter={() => setShowVolumeSlider(true)}
               onMouseLeave={() => {
+                if (isVolumeDragging) return;
                 setShowVolumeSlider(false);
                 setVolumeSliderHover(false);
               }}
@@ -231,15 +265,21 @@ export default function Controls({
               >
                 <div
                   ref={volumeBarRef}
-                  className={`volume-bar${volumeSliderHover ? ' volume-bar--hover' : ''}`}
-                  onClick={handleVolumeClick}
+                  className={`volume-bar${volumeSliderHover || isVolumeDragging ? ' volume-bar--hover' : ''}${isVolumeDragging ? ' volume-bar--dragging' : ''}`}
+                  onPointerDown={handleVolumePointerDown}
                   onMouseEnter={() => setVolumeSliderHover(true)}
-                  onMouseLeave={() => setVolumeSliderHover(false)}
+                  onMouseLeave={() => {
+                    if (!isVolumeDragging) setVolumeSliderHover(false);
+                  }}
                 >
                   <div className="volume-bar__track">
                     <div className="volume-bar__fill" style={{ width: `${effectiveVolume * 100}%` }} />
                   </div>
-                  <div className="volume-bar__thumb" style={{ left: `${effectiveVolume * 100}%` }} />
+                  <div
+                    className="volume-bar__thumb"
+                    style={{ left: `${effectiveVolume * 100}%` }}
+                    aria-hidden
+                  />
                 </div>
               </div>
             </div>

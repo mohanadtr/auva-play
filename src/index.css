@@ -383,6 +383,12 @@ html, body, #root {
   display: flex;
   align-items: center;
   cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+.volume-bar--dragging {
+  cursor: grabbing;
 }
 
 .volume-bar__track {
@@ -417,12 +423,24 @@ html, body, #root {
   opacity: 0;
   transition: opacity 150ms ease;
   box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: grab;
 }
 
 .volume-bar:hover .volume-bar__thumb,
 .volume-bar--hover .volume-bar__thumb {
   opacity: 1;
+}
+
+.volume-bar--dragging .volume-bar__thumb {
+  opacity: 1;
+  cursor: grabbing;
+  transform: translateX(-50%) scale(1.15);
+}
+
+.volume-bar--dragging .volume-bar__fill,
+.volume-bar--dragging .volume-bar__thumb {
+  transition: none;
 }
 
 /* ── Drop zone ── */
