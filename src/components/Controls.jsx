@@ -16,6 +16,7 @@ import {
   Camera,
   Keyboard,
   Sparkles,
+  FileText,
 } from 'lucide-react';
 import { formatTime, formatRemainingTime } from '../utils/formatTime';
 import { loadTimeDisplayMode, saveTimeDisplayMode } from '../utils/storage';
