@@ -15,6 +15,7 @@ import {
   Subtitles,
   Camera,
   Keyboard,
+  Sparkles,
 } from 'lucide-react';
 import { formatTime, formatRemainingTime } from '../utils/formatTime';
 import { loadTimeDisplayMode, saveTimeDisplayMode } from '../utils/storage';
@@ -34,6 +35,8 @@ export default function Controls({
   loop,
   subtitlesEnabled,
   hasSubtitles,
+  ambientEnabled,
+  isMiniPlayerActive,
   visible,
   onTogglePlay,
   onToggleControls,
@@ -45,6 +48,7 @@ export default function Controls({
   onTogglePiP,
   onToggleLoop,
   onToggleSubtitles,
+  onToggleAmbient,
   onLoadSubtitles,
   onScreenshot,
   onToggleShortcuts,
@@ -91,8 +95,9 @@ export default function Controls({
       if (!rect || !duration) return;
       const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const percent = x / rect.width;
+      const tooltipX = Math.max(24, Math.min(x, rect.width - 24));
       setHoverTime(percent * duration);
-      setHoverPosition(x);
+      setHoverPosition(tooltipX);
       if (isSeeking) onSeek(percent * duration);
     },
     [duration, isSeeking, onSeek]
@@ -182,8 +187,10 @@ export default function Controls({
       style={{
         opacity: visible || isSeeking ? 1 : 0,
         pointerEvents: visible || isSeeking ? 'auto' : 'none',
+        transition: 'opacity 300ms ease',
       }}
     >
+      <div className="controls-gradient-top" aria-hidden />
       <div className="controls-top">
         <div className="controls-top__row">
           {onBack ? (
@@ -206,6 +213,8 @@ export default function Controls({
       </div>
 
       <div className="controls-spacer" onClick={onToggleControls} />
+
+      <div className="controls-gradient-bottom" aria-hidden />
 
       <div className="controls-bar">
         <div
@@ -322,6 +331,16 @@ export default function Controls({
 
             <button
               type="button"
+              onClick={onToggleAmbient}
+              className={`${BTN_ICON} ambient-btn${ambientEnabled ? ' ambient-btn--active' : ''}`}
+              title="Ambient mode (G)"
+              style={{ opacity: ambientEnabled ? 1 : 0.55 }}
+            >
+              <Sparkles size={18} />
+            </button>
+
+            <button
+              type="button"
               onClick={() => (hasSubtitles ? onToggleSubtitles() : subtitleInputRef.current?.click())}
               className={`${BTN_ICON} cc-btn${subtitlesEnabled && hasSubtitles ? ' cc-btn--active' : ''}`}
               title="Subtitles (C)"
@@ -346,7 +365,12 @@ export default function Controls({
 
             <SpeedControl speed={speed} onSpeedChange={onSpeedChange} />
 
-            <button type="button" onClick={onTogglePiP} className={BTN_ICON} title="Picture-in-Picture (T)">
+            <button
+              type="button"
+              onClick={onTogglePiP}
+              className={`${BTN_ICON} pip-btn${isMiniPlayerActive ? ' pip-btn--active' : ''}`}
+              title="Mini Player (T)"
+            >
               <PictureInPicture2 size={18} />
             </button>
 

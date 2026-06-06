@@ -253,12 +253,14 @@ html, body, #root {
 
 /* ── Controls bar ── */
 .controls-bar {
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
-  padding: 16px 20px 20px;
+  position: relative;
+  z-index: 2;
+  padding: 12px 20px 18px;
 }
 
 .controls-top {
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
+  position: relative;
+  z-index: 2;
   padding: 4px 14px 10px;
 }
 
@@ -341,17 +343,19 @@ html, body, #root {
 
 .seek-bar__tooltip {
   position: absolute;
-  top: -28px;
+  bottom: 18px;
   transform: translateX(-50%);
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: 6px;
-  background: var(--surface);
-  border: 1.5px solid var(--border);
-  font-size: 11px;
-  color: var(--text-2);
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
   font-family: ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  pointer-events: none;
   pointer-events: none;
 }
 
@@ -724,6 +728,22 @@ html, body, #root {
   position: fixed;
   inset: 0;
   background: var(--bg);
+  overflow: hidden;
+}
+
+.player-shell--ambient {
+  background: #050505;
+}
+
+.player-media {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #000000;
+}
+
+.player-shell--ambient .player-media {
+  background: #050505;
 }
 
 /* ── Error text ── */
@@ -1329,7 +1349,38 @@ input:focus-visible {
   flex-direction: column;
   justify-content: space-between;
   z-index: 20;
-  transition: opacity 200ms;
+}
+
+.controls-gradient-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 140px;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.85) 0%,
+    rgba(0, 0, 0, 0.4) 60%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+.controls-gradient-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.controls-overlay .btn-icon {
+  width: 38px;
+  height: 38px;
 }
 
 .controls-spacer {
@@ -1370,7 +1421,7 @@ input:focus-visible {
 .controls-row__right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -1381,9 +1432,23 @@ input:focus-visible {
 }
 
 .player-video {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.ambient-layer {
+  position: absolute;
+  inset: -40px;
+  width: calc(100% + 80px);
+  height: calc(100% + 80px);
+  z-index: 0;
+  filter: blur(60px) saturate(1.8) brightness(0.7);
+  opacity: 0.75;
+  transform: scale(1.05);
+  pointer-events: none;
 }
 
 video::cue {
@@ -1418,6 +1483,127 @@ video::cue {
 .cc-btn--active {
   color: #ffffff !important;
   opacity: 1 !important;
+}
+
+.ambient-btn--active,
+.pip-btn--active {
+  color: #ffffff !important;
+}
+
+.pip-btn {
+  position: relative;
+}
+
+.pip-btn--active::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+/* ── Action feedback overlays ── */
+@keyframes actionPulse {
+  0%,
+  57% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+.action-feedback {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.action-feedback__pulse {
+  animation: actionPulse 700ms ease-out forwards;
+}
+
+.action-feedback__center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.action-feedback__circle {
+  width: 88px;
+  height: 88px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-feedback__circle--seek {
+  width: 72px;
+  height: 72px;
+}
+
+.action-feedback__seek {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.action-feedback__seek-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.action-feedback__volume-anchor {
+  position: absolute;
+  top: 72px;
+  right: 20px;
+}
+
+.action-feedback__seek--left {
+  left: 15%;
+}
+
+.action-feedback__seek--right {
+  right: 15%;
+}
+
+.action-feedback__seek-label {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.action-feedback__speed {
+  font-size: 28px;
+  font-weight: 700;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 12px;
+  padding: 8px 16px;
+}
+
+.action-feedback__volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 10px;
+  padding: 8px 14px;
 }
 
 /* ── Sleep timer ── */

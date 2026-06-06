@@ -49,7 +49,8 @@ const SECTIONS = [
     title: 'Player',
     rows: [
       { keys: ['F'], action: 'Fullscreen' },
-      { keys: ['T'], action: 'Picture-in-picture' },
+      { keys: ['T'], action: 'Mini player' },
+      { keys: ['G'], action: 'Toggle ambient mode' },
       { keys: ['Escape'], action: 'Exit fullscreen / clear A-B' },
       { keys: ['A'], action: 'Set A point' },
       { keys: ['S'], action: 'Set B point' },

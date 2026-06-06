@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from 'react';
+import { snapSpeed } from '../constants/speeds';
 
 function isTypingTarget(target) {
   const tag = target?.tagName?.toLowerCase();
@@ -23,6 +24,7 @@ export function useKeyboard({
   togglePiP,
   toggleLoop,
   toggleSubtitles,
+  toggleAmbient,
   takeScreenshot,
   folderNext,
   folderPrev,
@@ -32,6 +34,7 @@ export function useKeyboard({
   getDuration,
   getVolume,
   getSpeed,
+  getIsMuted,
   isPlaying,
   containerRef,
   hasVideo,
@@ -39,6 +42,7 @@ export function useKeyboard({
   isFullscreen,
   shortcutsOpen,
   hasFolderContext,
+  onFeedback,
 }) {
   const handleKeyDown = useCallback(
     (e) => {
@@ -90,36 +94,55 @@ export function useKeyboard({
       switch (e.key) {
         case ' ':
         case 'k':
-        case 'K':
+        case 'K': {
           e.preventDefault();
+          const wasPlaying = isPlaying();
           togglePlay();
+          onFeedback?.('play', wasPlaying ? 'pause' : 'play');
           break;
-        case 'ArrowLeft':
+        }
+        case 'ArrowLeft': {
           e.preventDefault();
-          seekRelative(e.shiftKey ? -30 : -5);
+          const seconds = e.shiftKey ? -30 : -5;
+          seekRelative(seconds);
+          onFeedback?.('seek', { direction: 'left', seconds });
           break;
-        case 'ArrowRight':
+        }
+        case 'ArrowRight': {
           e.preventDefault();
-          seekRelative(e.shiftKey ? 30 : 5);
+          const seconds = e.shiftKey ? 30 : 5;
+          seekRelative(seconds);
+          onFeedback?.('seek', { direction: 'right', seconds });
           break;
-        case 'ArrowUp':
+        }
+        case 'ArrowUp': {
           e.preventDefault();
-          changeVolume(getVolume() + 0.1);
+          const next = Math.min(1, getVolume() + 0.1);
+          changeVolume(next);
+          onFeedback?.('volume', { volume: next, muted: false });
           break;
-        case 'ArrowDown':
+        }
+        case 'ArrowDown': {
           e.preventDefault();
-          changeVolume(getVolume() - 0.1);
+          const next = Math.max(0, getVolume() - 0.1);
+          changeVolume(next);
+          onFeedback?.('volume', { volume: next, muted: next === 0 });
           break;
+        }
         case 'j':
-        case 'J':
+        case 'J': {
           e.preventDefault();
           seekRelative(-10);
+          onFeedback?.('seek', { direction: 'left', seconds: -10 });
           break;
+        }
         case 'l':
-        case 'L':
+        case 'L': {
           e.preventDefault();
           seekRelative(10);
+          onFeedback?.('seek', { direction: 'right', seconds: 10 });
           break;
+        }
         case 'Home':
           e.preventDefault();
           seek(0);
@@ -141,27 +164,42 @@ export function useKeyboard({
           }
           break;
         case '+':
-        case '=':
+        case '=': {
           e.preventDefault();
-          changeSpeed(getSpeed() + 0.25);
+          const next = snapSpeed(getSpeed() + 0.25);
+          changeSpeed(next);
+          onFeedback?.('speed', { speed: next });
           break;
-        case '-':
+        }
+        case '-': {
           e.preventDefault();
-          changeSpeed(getSpeed() - 0.25);
+          const next = snapSpeed(getSpeed() - 0.25);
+          changeSpeed(next);
+          onFeedback?.('speed', { speed: next });
           break;
-        case '[':
+        }
+        case '[': {
           e.preventDefault();
-          changeSpeed(getSpeed() - 0.25);
+          const next = snapSpeed(getSpeed() - 0.25);
+          changeSpeed(next);
+          onFeedback?.('speed', { speed: next });
           break;
-        case ']':
+        }
+        case ']': {
           e.preventDefault();
-          changeSpeed(getSpeed() + 0.25);
+          const next = snapSpeed(getSpeed() + 0.25);
+          changeSpeed(next);
+          onFeedback?.('speed', { speed: next });
           break;
+        }
         case 'm':
-        case 'M':
+        case 'M': {
           e.preventDefault();
+          const willMute = !getIsMuted();
           toggleMute();
+          onFeedback?.('volume', { volume: getVolume(), muted: willMute });
           break;
+        }
         case 'f':
         case 'F':
           e.preventDefault();
@@ -171,6 +209,11 @@ export function useKeyboard({
         case 'T':
           e.preventDefault();
           togglePiP();
+          break;
+        case 'g':
+        case 'G':
+          e.preventDefault();
+          toggleAmbient?.();
           break;
         case 'c':
         case 'C':
@@ -194,6 +237,7 @@ export function useKeyboard({
           if (e.shiftKey) {
             e.preventDefault();
             setSpeed?.(1);
+            onFeedback?.('speed', { reset: true });
           }
           break;
         case 'n':
@@ -234,6 +278,7 @@ export function useKeyboard({
       togglePiP,
       toggleLoop,
       toggleSubtitles,
+      toggleAmbient,
       takeScreenshot,
       folderNext,
       folderPrev,
@@ -243,6 +288,7 @@ export function useKeyboard({
       getDuration,
       getVolume,
       getSpeed,
+      getIsMuted,
       isPlaying,
       containerRef,
       hasVideo,
@@ -250,6 +296,7 @@ export function useKeyboard({
       isFullscreen,
       shortcutsOpen,
       hasFolderContext,
+      onFeedback,
     ]
   );
 

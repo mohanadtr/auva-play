@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
   SPEED: 'vp_speed',
   TIME_DISPLAY: 'vp_time_display_mode',
   LOOP: 'auva-play-loop',
+  AMBIENT: 'auva-ambient',
 };
 
 /**
@@ -226,6 +227,30 @@ export function saveLoop(loop) {
 export function loadLoop() {
   try {
     return localStorage.getItem(STORAGE_KEYS.LOOP) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Save ambient mode preference
+ * @param {boolean} enabled
+ */
+export function saveAmbient(enabled) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.AMBIENT, enabled ? '1' : '0');
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Load ambient mode preference
+ * @returns {boolean}
+ */
+export function loadAmbient() {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.AMBIENT) === '1';
   } catch {
     return false;
   }

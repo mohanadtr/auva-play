@@ -5,13 +5,18 @@ import { useKeyboard } from '../hooks/useKeyboard';
 import { useSubtitles } from '../hooks/useSubtitles';
 import { useSleepTimer } from '../hooks/useSleepTimer';
 import { useToast } from '../hooks/useToast';
+import { useControlsVisibility } from '../hooks/useControlsVisibility';
+import { useDocumentPiP } from '../hooks/useDocumentPiP';
 import { formatTime } from '../utils/formatTime';
 import { captureScreenshot } from '../utils/screenshot';
+import { loadAmbient, saveAmbient } from '../utils/storage';
 import { BTN_PRIMARY, BTN_SECONDARY } from '../utils/buttonClasses';
 import Controls from './Controls';
 import ShortcutsOverlay from './ShortcutsOverlay';
 import Toast from './Toast';
 import VideoSpinner from './VideoSpinner';
+import { ActionFeedback } from './ActionFeedback';
+import AmbientLayer from './AmbientLayer';
 
 export default function Player({
   source,
@@ -22,24 +27,41 @@ export default function Player({
   onVideoLoadError,
 }) {
   const containerRef = useRef(null);
-  const idleTimerRef = useRef(null);
+  const feedbackRef = useRef(null);
   const videoClickTimerRef = useRef(null);
   const objectUrlRef = useRef(null);
-  const [controlsVisible, setControlsVisible] = useState(true);
   const [videoSrc, setVideoSrc] = useState(null);
   const [isVideoLoading, setIsVideoLoading] = useState(true);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [ambientEnabled, setAmbientEnabled] = useState(loadAmbient);
   const { toast, showToast } = useToast();
 
   const { filename } = source;
   const player = useVideoPlayer(filename);
   const abRepeat = useABRepeat();
   const subtitles = useSubtitles(player.videoRef);
+  const { isMiniPlayerActive, toggleMiniPlayer } = useDocumentPiP(player.videoRef, { showToast });
+  const { controlsVisible, showControls, toggleControlsVisibility } = useControlsVisibility(
+    containerRef,
+    player.isPlaying
+  );
 
   const sleepTimer = useSleepTimer(() => {
     player.videoRef.current?.pause();
     showToast('Sleep timer ended');
   });
+
+  const triggerFeedback = useCallback((type, value) => {
+    feedbackRef.current?.triggerFeedback(type, value);
+  }, []);
+
+  const toggleAmbient = useCallback(() => {
+    setAmbientEnabled((prev) => {
+      const next = !prev;
+      saveAmbient(next);
+      return next;
+    });
+  }, []);
 
   const cleanupVideo = useCallback(() => {
     const video = player.videoRef.current;
@@ -78,7 +100,6 @@ export default function Player({
 
   useEffect(() => {
     return () => {
-      clearTimeout(idleTimerRef.current);
       clearTimeout(videoClickTimerRef.current);
       sleepTimer.clear();
       subtitles.clear();
@@ -106,54 +127,6 @@ export default function Player({
     video.addEventListener('ended', handleEnded);
     return () => video.removeEventListener('ended', handleEnded);
   }, [folderPlayback, player.loop, player.videoRef]);
-
-  const showControls = useCallback(() => {
-    setControlsVisible(true);
-    clearTimeout(idleTimerRef.current);
-    idleTimerRef.current = setTimeout(() => {
-      if (player.isPlaying) setControlsVisible(false);
-    }, 2000);
-  }, [player.isPlaying]);
-
-  const toggleControlsVisibility = useCallback(() => {
-    setControlsVisible((prev) => {
-      const next = !prev;
-      clearTimeout(idleTimerRef.current);
-      if (next && player.isPlaying) {
-        idleTimerRef.current = setTimeout(() => setControlsVisible(false), 2000);
-      }
-      return next;
-    });
-  }, [player.isPlaying]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const onMove = () => showControls();
-    const onLeave = () => {
-      if (player.isPlaying) setControlsVisible(false);
-    };
-    container.addEventListener('mousemove', onMove);
-    container.addEventListener('mouseleave', onLeave);
-    return () => {
-      container.removeEventListener('mousemove', onMove);
-      container.removeEventListener('mouseleave', onLeave);
-      clearTimeout(idleTimerRef.current);
-    };
-  }, [showControls, player.isPlaying]);
-
-  useEffect(() => {
-    if (!player.isPlaying) {
-      setControlsVisible(true);
-      clearTimeout(idleTimerRef.current);
-    }
-  }, [player.isPlaying]);
-
-  useEffect(() => {
-    const onKey = () => showControls();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [showControls]);
 
   const handleScreenshot = useCallback(() => {
     const video = player.videoRef.current;
@@ -199,10 +172,12 @@ export default function Player({
       const change = -delta * 0.003;
       if (Math.abs(change) < 0.005) return;
 
-      player.changeVolume(player.volume + Math.sign(change) * Math.min(Math.abs(change), 0.08));
+      const next = Math.max(0, Math.min(1, player.volume + Math.sign(change) * Math.min(Math.abs(change), 0.08)));
+      player.changeVolume(next);
+      triggerFeedback('volume', { volume: next, muted: next === 0 });
       showControls();
     },
-    [player, showControls, shortcutsOpen]
+    [player, showControls, shortcutsOpen, triggerFeedback]
   );
 
   useEffect(() => {
@@ -234,9 +209,10 @@ export default function Player({
     setA: abRepeat.setA,
     setB: abRepeat.setB,
     clearAB: abRepeat.clear,
-    togglePiP: player.togglePiP,
+    togglePiP: toggleMiniPlayer,
     toggleLoop: player.toggleLoop,
     toggleSubtitles: subtitles.toggle,
+    toggleAmbient,
     takeScreenshot: handleScreenshot,
     folderNext: folderPlayback?.onNext,
     folderPrev: folderPlayback?.onPrev,
@@ -246,6 +222,7 @@ export default function Player({
     getDuration: () => player.duration,
     getVolume: () => player.volume,
     getSpeed: () => player.speed,
+    getIsMuted: () => player.isMuted,
     isPlaying: () => player.isPlaying,
     containerRef,
     hasVideo: keyboardEnabled,
@@ -253,38 +230,44 @@ export default function Player({
     isFullscreen: player.isFullscreen,
     shortcutsOpen,
     hasFolderContext: !!folderPlayback,
+    onFeedback: triggerFeedback,
   });
 
   return (
     <div
       ref={containerRef}
-      className="player-shell"
+      className={`player-shell${ambientEnabled ? ' player-shell--ambient' : ''}`}
       style={{ cursor: controlsVisible ? 'default' : 'none' }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleSubtitleDrop}
     >
-      <video
-        ref={player.videoRef}
-        src={videoSrc}
-        className="player-video"
-        onTimeUpdate={player.onTimeUpdate}
-        onLoadedMetadata={player.onLoadedMetadata}
-        onPlay={player.onPlay}
-        onPause={player.onPause}
-        onProgress={player.onProgress}
-        onCanPlay={handleCanPlay}
-        onError={handleVideoError}
-        onClick={handleVideoClick}
-        onDoubleClick={handleDoubleClick}
-        playsInline
-        crossOrigin={source.type === 'url' ? 'anonymous' : undefined}
-      >
-        {subtitles.trackUrl && (
-          <track kind="subtitles" src={subtitles.trackUrl} srcLang="en" label="Subtitles" default />
-        )}
-      </video>
+      <div className="player-media">
+        <AmbientLayer videoRef={player.videoRef} enabled={ambientEnabled} isPlaying={player.isPlaying} />
+        <video
+          ref={player.videoRef}
+          src={videoSrc}
+          className="player-video"
+          onTimeUpdate={player.onTimeUpdate}
+          onLoadedMetadata={player.onLoadedMetadata}
+          onPlay={player.onPlay}
+          onPause={player.onPause}
+          onProgress={player.onProgress}
+          onCanPlay={handleCanPlay}
+          onError={handleVideoError}
+          onClick={handleVideoClick}
+          onDoubleClick={handleDoubleClick}
+          playsInline
+          crossOrigin={source.type === 'url' ? 'anonymous' : undefined}
+        >
+          {subtitles.trackUrl && (
+            <track kind="subtitles" src={subtitles.trackUrl} srcLang="en" label="Subtitles" default />
+          )}
+        </video>
+      </div>
 
       {isVideoLoading && <VideoSpinner />}
+
+      <ActionFeedback ref={feedbackRef} />
 
       <Controls
         isPlaying={player.isPlaying}
@@ -298,6 +281,8 @@ export default function Player({
         loop={player.loop}
         subtitlesEnabled={subtitles.enabled}
         hasSubtitles={subtitles.hasSubtitles}
+        ambientEnabled={ambientEnabled}
+        isMiniPlayerActive={isMiniPlayerActive}
         visible={controlsVisible}
         onTogglePlay={player.togglePlay}
         onToggleControls={toggleControlsVisibility}
@@ -306,9 +291,10 @@ export default function Player({
         onToggleMute={player.toggleMute}
         onSpeedChange={player.changeSpeed}
         onToggleFullscreen={() => player.toggleFullscreen(containerRef)}
-        onTogglePiP={player.togglePiP}
+        onTogglePiP={toggleMiniPlayer}
         onToggleLoop={player.toggleLoop}
         onToggleSubtitles={subtitles.toggle}
+        onToggleAmbient={toggleAmbient}
         onLoadSubtitles={subtitles.loadFile}
         onScreenshot={handleScreenshot}
         onToggleShortcuts={() => setShortcutsOpen((v) => !v)}
