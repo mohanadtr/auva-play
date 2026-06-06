@@ -72,12 +72,30 @@ export default function App() {
     setScreen('player');
   }, []);
 
-  const handleLaunchedFile = useCallback(
-    (file, fileHandle) => {
-      playFile(file, fileHandle);
-    },
-    [playFile]
-  );
+  const handleLaunchedFile = useCallback(async (file, fileHandle) => {
+    if (!file || !fileHandle) return;
+
+    try {
+      await saveFileHandle({
+        handle: fileHandle,
+        name: file.name,
+        size: file.size,
+        lastOpened: Date.now(),
+      });
+    } catch (err) {
+      console.warn('Could not save to recent files:', err);
+    }
+
+    setUrlLoadError('');
+    setVideoSource({ type: 'file', file, filename: file.name });
+    addRecentFile({ name: file.name, size: file.size });
+    setFromFolder(false);
+    setActiveFolderId(null);
+    setFolderName(null);
+    setFolderFileId(null);
+    setFolderFiles([]);
+    setScreen('player');
+  }, []);
 
   useLaunchQueue(handleLaunchedFile);
 

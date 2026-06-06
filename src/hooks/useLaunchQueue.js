@@ -3,17 +3,26 @@ import { useEffect } from 'react';
 export function useLaunchQueue(onFileReceived) {
   useEffect(() => {
     if (!('launchQueue' in window)) return;
+    if (typeof window.launchQueue.setConsumer !== 'function') return;
 
-    window.launchQueue.setConsumer(async (launchParams) => {
-      if (!launchParams.files || launchParams.files.length === 0) return;
+    try {
+      window.launchQueue.setConsumer(async (launchParams) => {
+        try {
+          if (!launchParams?.files?.length) return;
 
-      try {
-        const fileHandle = launchParams.files[0];
-        const file = await fileHandle.getFile();
-        onFileReceived(file, fileHandle);
-      } catch (error) {
-        console.error('Launch queue error:', error);
-      }
-    });
-  }, [onFileReceived]);
+          const fileHandle = launchParams.files[0];
+          if (!fileHandle) return;
+
+          const file = await fileHandle.getFile();
+          if (!file) return;
+
+          onFileReceived(file, fileHandle);
+        } catch (err) {
+          console.warn('LaunchQueue file error:', err);
+        }
+      });
+    } catch (err) {
+      console.warn('LaunchQueue setup error:', err);
+    }
+  }, []);
 }
