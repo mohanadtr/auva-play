@@ -4,6 +4,7 @@ import { addRecentFile, clearBookmarkStorage } from './utils/storage';
 import { saveFileHandle } from './utils/fileHandles';
 import { getFolderFiles, getFolderFile, openFolderFile } from './utils/db';
 import { useToast } from './hooks/useToast';
+import { useLaunchQueue } from './hooks/useLaunchQueue';
 import { BTN_SECONDARY } from './utils/buttonClasses';
 import Home from './screens/Home';
 import Library from './screens/Library';
@@ -37,11 +38,15 @@ export default function App() {
   }, []);
 
   const handleInstall = useCallback(async () => {
-    if (!installPrompt) return;
+    if (!installPrompt) {
+      showToast('Install is not supported on this browser. Try Chrome or Edge for the full experience.');
+      return;
+    }
     installPrompt.prompt();
-    const result = await installPrompt.userChoice;
-    if (result.outcome === 'accepted') setInstallPrompt(null);
-  }, [installPrompt]);
+    await installPrompt.userChoice;
+    setInstallPrompt(null);
+    localStorage.setItem('auva-install-dismissed', 'true');
+  }, [installPrompt, showToast]);
 
   const playFile = useCallback(async (file, handle, folderMeta = null) => {
     setUrlLoadError('');
@@ -66,6 +71,15 @@ export default function App() {
     }
     setScreen('player');
   }, []);
+
+  const handleLaunchedFile = useCallback(
+    (file, fileHandle) => {
+      playFile(file, fileHandle);
+    },
+    [playFile]
+  );
+
+  useLaunchQueue(handleLaunchedFile);
 
   const playUrl = useCallback((url) => {
     const pathname = url.split('?')[0];
@@ -181,7 +195,13 @@ export default function App() {
       )}
 
       {screen === 'library' && (
-        <Library onBack={goHome} onOpenFolder={goToFolder} onFolderCreated={goToFolder} />
+        <Library
+          onBack={goHome}
+          onOpenFolder={goToFolder}
+          onFolderCreated={goToFolder}
+          installPrompt={installPrompt}
+          onInstall={handleInstall}
+        />
       )}
 
       {screen === 'folder' && activeFolderId && (

@@ -79,6 +79,19 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
+        file_handlers: [
+          {
+            action: '/',
+            accept: {
+              'video/mp4': ['.mp4', '.m4v'],
+              'video/webm': ['.webm'],
+              'video/x-matroska': ['.mkv'],
+              'video/quicktime': ['.mov'],
+              'video/x-msvideo': ['.avi'],
+              'video/*': ['.mp4', '.webm', '.mkv', '.mov', '.avi', '.m4v', '.wmv', '.flv', '.ts'],
+            },
+          },
+        ],
       },
     }),
   ],

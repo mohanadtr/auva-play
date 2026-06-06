@@ -3,13 +3,20 @@ import { ChevronLeft } from 'lucide-react';
 import { useFolders } from '../hooks/useFolders';
 import FolderCard from '../components/FolderCard';
 import NewFolderModal from '../components/NewFolderModal';
+import InstallBanner from '../components/InstallBanner';
 import { BTN_PRIMARY, BTN_SECONDARY } from '../utils/buttonClasses';
+
+function isPwaInstalled() {
+  return (
+    window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+  );
+}
 
 function FolderCardSkeleton() {
   return <div className="folder-card-skeleton" aria-hidden />;
 }
 
-export default function Library({ onBack, onOpenFolder, onFolderCreated }) {
+export default function Library({ onBack, onOpenFolder, onFolderCreated, installPrompt, onInstall }) {
   const { folders, fileCounts, loading, createFolder, renameFolder, removeFolder } = useFolders();
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -19,14 +26,25 @@ export default function Library({ onBack, onOpenFolder, onFolderCreated }) {
     if (folder) onFolderCreated(folder.id);
   };
 
+  const isStandalone = isPwaInstalled();
+
   return (
     <div className="library-screen">
+      <InstallBanner installPrompt={installPrompt} onInstall={onInstall} />
       <header className="library-header">
         <button type="button" className="folder-view-back" onClick={onBack}>
           <ChevronLeft size={18} />
           Home
         </button>
-        <h1 className="library-brand">Library</h1>
+        <div className="library-brand-wrap">
+          <h1 className="library-brand">Auva Play</h1>
+          {isStandalone && (
+            <span className="library-standalone-badge">
+              <span className="library-standalone-dot" aria-hidden />
+              Ready to open files
+            </span>
+          )}
+        </div>
         <button type="button" className={BTN_SECONDARY} onClick={() => setModalOpen(true)}>
           New Folder
         </button>
