@@ -66,10 +66,21 @@ const SECTIONS = [
     rows: [{ keys: ['C'], action: 'Toggle subtitles' }],
   },
   {
-    title: 'Bookmarks & Filters',
+    title: 'Panels & Tools',
     rows: [
       { keys: ['B'], action: 'Add bookmark at current time' },
       { keys: ['V'], action: 'Toggle video filters panel' },
+      { keys: ['E'], action: 'Toggle audio equalizer panel' },
+    ],
+  },
+  {
+    title: 'Zoom & Pan',
+    rows: [
+      { keys: ['Z'], action: 'Zoom in' },
+      { keys: ['Shift', 'Z'], action: 'Zoom out' },
+      { keys: ['Ctrl', '0'], action: 'Reset zoom' },
+      { keys: ['Arrows'], action: 'Pan (when zoomed in)' },
+      { keys: ['Drag'], action: 'Pan with mouse' },
     ],
   },
   {

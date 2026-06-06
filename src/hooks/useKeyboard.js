@@ -30,6 +30,15 @@ export function useKeyboard({
   folderPrev,
   addBookmark,
   toggleFilters,
+  toggleEqualizer,
+  zoomIn,
+  zoomOut,
+  resetZoom,
+  panLeft,
+  panRight,
+  panUp,
+  panDown,
+  isZoomed,
   toggleShortcuts,
   closeMenus,
   getCurrentTime,
@@ -105,30 +114,46 @@ export function useKeyboard({
         }
         case 'ArrowLeft': {
           e.preventDefault();
-          const seconds = e.shiftKey ? -30 : -5;
-          seekRelative(seconds);
-          onFeedback?.('seek', { direction: 'left', seconds });
+          if (isZoomed) {
+            panLeft?.();
+          } else {
+            const seconds = e.shiftKey ? -30 : -5;
+            seekRelative(seconds);
+            onFeedback?.('seek', { direction: 'left', seconds });
+          }
           break;
         }
         case 'ArrowRight': {
           e.preventDefault();
-          const seconds = e.shiftKey ? 30 : 5;
-          seekRelative(seconds);
-          onFeedback?.('seek', { direction: 'right', seconds });
+          if (isZoomed) {
+            panRight?.();
+          } else {
+            const seconds = e.shiftKey ? 30 : 5;
+            seekRelative(seconds);
+            onFeedback?.('seek', { direction: 'right', seconds });
+          }
           break;
         }
         case 'ArrowUp': {
           e.preventDefault();
-          const next = Math.min(1, getVolume() + 0.1);
-          changeVolume(next);
-          onFeedback?.('volume', { volume: next, muted: false });
+          if (isZoomed) {
+            panUp?.();
+          } else {
+            const next = Math.min(1, getVolume() + 0.1);
+            changeVolume(next);
+            onFeedback?.('volume', { volume: next, muted: false });
+          }
           break;
         }
         case 'ArrowDown': {
           e.preventDefault();
-          const next = Math.max(0, getVolume() - 0.1);
-          changeVolume(next);
-          onFeedback?.('volume', { volume: next, muted: next === 0 });
+          if (isZoomed) {
+            panDown?.();
+          } else {
+            const next = Math.max(0, getVolume() - 0.1);
+            changeVolume(next);
+            onFeedback?.('volume', { volume: next, muted: next === 0 });
+          }
           break;
         }
         case 'j':
@@ -266,6 +291,24 @@ export function useKeyboard({
           e.preventDefault();
           toggleFilters?.();
           break;
+        case 'e':
+        case 'E':
+          e.preventDefault();
+          toggleEqualizer?.();
+          break;
+        case 'z':
+        case 'Z':
+          e.preventDefault();
+          if (e.shiftKey) zoomOut?.();
+          else zoomIn?.();
+          break;
+        case '0':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            resetZoom?.();
+            break;
+          }
+          // fallthrough to default if not ctrl+0
         default:
           if (e.key >= '0' && e.key <= '9') {
             e.preventDefault();
@@ -296,6 +339,15 @@ export function useKeyboard({
       folderPrev,
       addBookmark,
       toggleFilters,
+      toggleEqualizer,
+      zoomIn,
+      zoomOut,
+      resetZoom,
+      panLeft,
+      panRight,
+      panUp,
+      panDown,
+      isZoomed,
       toggleShortcuts,
       closeMenus,
       getCurrentTime,

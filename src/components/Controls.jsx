@@ -23,7 +23,9 @@ import { BTN_ICON } from '../utils/buttonClasses';
 import SpeedControl from './SpeedControl';
 import SleepTimerControl from './SleepTimerControl';
 import FilterPanel from './FilterPanel';
+import EqualizerPanel from './EqualizerPanel';
 import BookmarkPanel from './BookmarkPanel';
+import SubtitlePanel from './SubtitlePanel';
 
 export default function Controls({
   isPlaying,
@@ -35,8 +37,7 @@ export default function Controls({
   isFullscreen,
   buffered,
   loop,
-  subtitlesEnabled,
-  hasSubtitles,
+  subtitles,
   ambientEnabled,
   isMiniPlayerActive,
   visible,
@@ -49,9 +50,7 @@ export default function Controls({
   onToggleFullscreen,
   onTogglePiP,
   onToggleLoop,
-  onToggleSubtitles,
   onToggleAmbient,
-  onLoadSubtitles,
   onScreenshot,
   onToggleShortcuts,
   onBack,
@@ -60,6 +59,7 @@ export default function Controls({
   sleepTimer,
   videoFilters,
   bookmarks,
+  equalizer,
   onAddBookmark,
   getCurrentTime,
 }) {
@@ -175,10 +175,10 @@ export default function Controls({
   const handleSubtitleFile = useCallback(
     (e) => {
       const file = e.target.files?.[0];
-      if (file) onLoadSubtitles(file);
+      if (file) subtitles.loadFile(file);
       e.target.value = '';
     },
-    [onLoadSubtitles]
+    [subtitles]
   );
 
   const effectiveVolume = isMuted ? 0 : volume;
@@ -233,6 +233,21 @@ export default function Controls({
           <div className="seek-bar__track">
             <div className="seek-bar__buffered" style={{ width: `${bufferedPercent}%` }} />
             <div className="seek-bar__progress" style={{ width: `${progress}%` }} />
+            {bookmarks && bookmarks.bookmarks.map((b) => {
+              const pos = duration > 0 ? (b.time / duration) * 100 : 0;
+              return (
+                <div
+                  key={b.id}
+                  className="seek-bar__chapter"
+                  style={{ left: `${pos}%` }}
+                  title={b.note || formatTime(b.time)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSeek(b.time);
+                  }}
+                />
+              );
+            })}
           </div>
           <div className="seek-bar__thumb" style={{ left: `calc(${progress}% - 6px)` }} />
           {hoverTime !== null && (
@@ -347,21 +362,34 @@ export default function Controls({
 
             <button
               type="button"
-              onClick={() => (hasSubtitles ? onToggleSubtitles() : subtitleInputRef.current?.click())}
-              className={`${BTN_ICON} cc-btn${subtitlesEnabled && hasSubtitles ? ' cc-btn--active' : ''}`}
-              title="Subtitles (C)"
-              style={{ opacity: hasSubtitles && subtitlesEnabled ? 1 : hasSubtitles ? 0.7 : 0.4 }}
+              onClick={subtitles.toggle}
+              className={`${BTN_ICON} cc-btn${subtitles.enabled ? ' cc-btn--active' : ''}`}
+              title="Toggle subtitles (C)"
+              style={{ opacity: subtitles.hasSubtitles ? 1 : 0.5 }}
             >
               <Subtitles size={18} />
             </button>
-            <input
-              ref={subtitleInputRef}
-              type="file"
-              accept=".srt,.vtt"
-              className="hidden"
-              onChange={handleSubtitleFile}
-              aria-hidden
-            />
+
+            <label className={`${BTN_ICON} cursor-pointer`} title="Load subtitle file">
+              <FileText size={18} />
+              <input
+                type="file"
+                accept=".vtt,.srt"
+                className="hidden"
+                onChange={handleSubtitleFile}
+              />
+            </label>
+
+            {subtitles && subtitles.hasSubtitles && (
+              <SubtitlePanel
+                enabled={subtitles.enabled}
+                hasSubtitles={subtitles.hasSubtitles}
+                offset={subtitles.offset}
+                onOffsetChange={subtitles.changeOffset}
+                style={subtitles.style}
+                onStyleChange={subtitles.changeStyle}
+              />
+            )}
 
             <SleepTimerControl timer={sleepTimer} />
 
@@ -370,6 +398,21 @@ export default function Controls({
             </button>
 
             <SpeedControl speed={speed} onSpeedChange={onSpeedChange} />
+
+            {equalizer && (
+              <EqualizerPanel
+                bands={equalizer.bands}
+                gains={equalizer.gains}
+                activePreset={equalizer.activePreset}
+                isEnabled={equalizer.isEnabled}
+                isFlat={equalizer.isFlat}
+                initAudio={equalizer.initAudio}
+                onUpdateGain={equalizer.updateGain}
+                onApplyPreset={equalizer.applyPreset}
+                onReset={equalizer.resetEQ}
+                onToggleEQ={equalizer.toggleEQ}
+              />
+            )}
 
             {videoFilters && (
               <FilterPanel

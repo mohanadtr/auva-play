@@ -10,6 +10,8 @@ import { useDocumentPiP } from '../hooks/useDocumentPiP';
 import { useVideoFilters } from '../hooks/useVideoFilters';
 import { useGestures } from '../hooks/useGestures';
 import { useBookmarks } from '../hooks/useBookmarks';
+import { useZoomPan } from '../hooks/useZoomPan';
+import { useEqualizer } from '../hooks/useEqualizer';
 import { formatTime } from '../utils/formatTime';
 import { captureScreenshot } from '../utils/screenshot';
 import { loadAmbient, saveAmbient } from '../utils/storage';
@@ -46,6 +48,8 @@ export default function Player({
   const { isMiniPlayerActive, toggleMiniPlayer } = useDocumentPiP(player.videoRef, { showToast });
   const videoFilters = useVideoFilters();
   const bookmarks = useBookmarks(filename);
+  const zoomPan = useZoomPan();
+  const equalizer = useEqualizer(player.videoRef);
   const { controlsVisible, showControls, toggleControlsVisibility } = useControlsVisibility(
     containerRef,
     player.isPlaying
@@ -249,6 +253,14 @@ export default function Player({
     folderPrev: folderPlayback?.onPrev,
     addBookmark: handleAddBookmark,
     toggleFilters: () => {}, // Handled by FilterPanel
+    toggleEqualizer: () => {}, // Handled by EqualizerPanel
+    zoomIn: zoomPan.zoomIn,
+    zoomOut: zoomPan.zoomOut,
+    resetZoom: zoomPan.resetZoom,
+    panLeft: zoomPan.panLeft,
+    panRight: zoomPan.panRight,
+    panUp: zoomPan.panUp,
+    panDown: zoomPan.panDown,
     toggleShortcuts: () => setShortcutsOpen((v) => !v),
     closeMenus: () => setShortcutsOpen(false),
     getCurrentTime: () => player.videoRef.current?.currentTime || 0,
@@ -280,7 +292,7 @@ export default function Player({
           ref={player.videoRef}
           src={videoSrc}
           className="player-video"
-          style={videoFilters.filterStyle}
+          style={{ ...videoFilters.filterStyle, ...zoomPan.videoStyle }}
           onTimeUpdate={player.onTimeUpdate}
           onLoadedMetadata={player.onLoadedMetadata}
           onPlay={player.onPlay}
@@ -290,6 +302,10 @@ export default function Player({
           onError={handleVideoError}
           onClick={handleVideoClick}
           onDoubleClick={handleDoubleClick}
+          onMouseDown={zoomPan.startPan}
+          onMouseMove={zoomPan.onPanMove}
+          onMouseUp={zoomPan.endPan}
+          onMouseLeave={zoomPan.endPan}
           playsInline
           crossOrigin={source.type === 'url' ? 'anonymous' : undefined}
         >
@@ -313,8 +329,7 @@ export default function Player({
         isFullscreen={player.isFullscreen}
         buffered={player.buffered}
         loop={player.loop}
-        subtitlesEnabled={subtitles.enabled}
-        hasSubtitles={subtitles.hasSubtitles}
+        subtitles={subtitles}
         ambientEnabled={ambientEnabled}
         isMiniPlayerActive={isMiniPlayerActive}
         visible={controlsVisible}
@@ -327,9 +342,7 @@ export default function Player({
         onToggleFullscreen={() => player.toggleFullscreen(containerRef)}
         onTogglePiP={toggleMiniPlayer}
         onToggleLoop={player.toggleLoop}
-        onToggleSubtitles={subtitles.toggle}
         onToggleAmbient={toggleAmbient}
-        onLoadSubtitles={subtitles.loadFile}
         onScreenshot={handleScreenshot}
         onToggleShortcuts={() => setShortcutsOpen((v) => !v)}
         onBack={onBack}
@@ -338,6 +351,7 @@ export default function Player({
         sleepTimer={sleepTimer}
         videoFilters={videoFilters}
         bookmarks={bookmarks}
+        equalizer={equalizer}
         onAddBookmark={handleAddBookmark}
         getCurrentTime={() => player.videoRef.current?.currentTime || 0}
       />

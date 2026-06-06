@@ -322,6 +322,24 @@ html, body, #root {
   border-radius: 99px;
 }
 
+.seek-bar__chapter {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 10px;
+  background: #ffffff;
+  border-radius: 2px;
+  cursor: pointer;
+  z-index: 2;
+  transition: transform 150ms, background 150ms;
+}
+
+.seek-bar__chapter:hover {
+  transform: translateY(-50%) scale(1.5);
+  background: var(--accent);
+}
+
 .seek-bar__thumb {
   position: absolute;
   top: 50%;
