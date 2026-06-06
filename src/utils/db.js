@@ -1,12 +1,13 @@
 import { openFileWithPermission } from './openFileWithPermission';
 
 const DB_NAME = 'auva-play-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const STORES = {
   FOLDERS: 'folders',
   FOLDER_FILES: 'folderFiles',
   RECENT_FILES: 'recentFiles',
+  BOOKMARKS: 'bookmarks',
 };
 
 /**
@@ -29,6 +30,10 @@ function openDB() {
         }
         if (!db.objectStoreNames.contains(STORES.RECENT_FILES)) {
           db.createObjectStore(STORES.RECENT_FILES, { keyPath: 'name' });
+        }
+        if (!db.objectStoreNames.contains(STORES.BOOKMARKS)) {
+          const bStore = db.createObjectStore(STORES.BOOKMARKS, { keyPath: 'id' });
+          bStore.createIndex('videoKey', 'videoKey', { unique: false });
         }
       };
     } catch {
