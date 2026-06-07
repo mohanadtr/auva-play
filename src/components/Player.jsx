@@ -8,7 +8,8 @@ import { useToast } from '../hooks/useToast';
 import { useControlsVisibility } from '../hooks/useControlsVisibility';
 import { useDocumentPiP } from '../hooks/useDocumentPiP';
 import { useVideoFilters } from '../hooks/useVideoFilters';
-import { useGestures } from '../hooks/useGestures';
+import { useTouchGestures } from '../hooks/useTouchGestures';
+import { useOrientation } from '../hooks/useOrientation';
 import { useBookmarks } from '../hooks/useBookmarks';
 import { useZoomPan } from '../hooks/useZoomPan';
 import { useEqualizer } from '../hooks/useEqualizer';
@@ -50,9 +51,10 @@ export default function Player({
   const bookmarks = useBookmarks(filename);
   const zoomPan = useZoomPan();
   const equalizer = useEqualizer(player.videoRef);
+  const { isPortraitMobile, isLandscapeMobile } = useOrientation();
   const { controlsVisible, showControls, toggleControlsVisibility } = useControlsVisibility(
     containerRef,
-    player.isPlaying
+    player.isPlaying && !isPortraitMobile
   );
 
   const sleepTimer = useSleepTimer(() => {
@@ -72,21 +74,28 @@ export default function Player({
     });
   }, []);
 
-  // Gesture controls for touch devices
-  useGestures({
+  useTouchGestures({
+    videoRef: player.videoRef,
     containerRef,
     enabled: keyboardEnabled,
+    duration: player.duration,
     seekRelative: player.seekRelative,
+    seek: player.seek,
     changeVolume: player.changeVolume,
     getVolume: () => player.volume,
     togglePlay: player.togglePlay,
-    changeSpeed: player.changeSpeed,
-    getSpeed: () => player.speed,
     onBrightnessChange: (val) => videoFilters.updateFilter('brightness', val),
     getBrightness: () => videoFilters.filters.brightness,
     onFeedback: triggerFeedback,
-    showControls,
+    onSingleTap: isPortraitMobile ? undefined : toggleControlsVisibility,
   });
+
+  useEffect(() => {
+    if (!isLandscapeMobile) return;
+    if (localStorage.getItem('auva-landscape-tip') === 'true') return;
+    localStorage.setItem('auva-landscape-tip', 'true');
+    showToast('Tip: tap for controls');
+  }, [isLandscapeMobile, showToast]);
 
   const handleAddBookmark = useCallback(
     async () => {
@@ -189,11 +198,12 @@ export default function Player({
   }, [player]);
 
   const handleVideoClick = useCallback(() => {
+    if (isPortraitMobile) return;
     clearTimeout(videoClickTimerRef.current);
     videoClickTimerRef.current = setTimeout(() => {
       toggleControlsVisibility();
     }, 220);
-  }, [toggleControlsVisibility]);
+  }, [toggleControlsVisibility, isPortraitMobile]);
 
   const handleWheel = useCallback(
     (e) => {
@@ -281,8 +291,8 @@ export default function Player({
   return (
     <div
       ref={containerRef}
-      className={`player-shell${ambientEnabled ? ' player-shell--ambient' : ''}`}
-      style={{ cursor: controlsVisible ? 'default' : 'none' }}
+      className={`player-shell${ambientEnabled ? ' player-shell--ambient' : ''}${isPortraitMobile ? ' player-shell--portrait-mobile' : ''}${isLandscapeMobile ? ' player-shell--landscape-mobile' : ''}`}
+      style={{ cursor: isPortraitMobile || controlsVisible ? 'default' : 'none' }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleSubtitleDrop}
     >
@@ -332,7 +342,8 @@ export default function Player({
         subtitles={subtitles}
         ambientEnabled={ambientEnabled}
         isMiniPlayerActive={isMiniPlayerActive}
-        visible={controlsVisible}
+        visible={isPortraitMobile ? true : controlsVisible}
+        portraitMobile={isPortraitMobile}
         onTogglePlay={player.togglePlay}
         onToggleControls={toggleControlsVisibility}
         onSeek={player.seek}

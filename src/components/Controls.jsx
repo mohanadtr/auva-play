@@ -63,6 +63,7 @@ export default function Controls({
   equalizer,
   onAddBookmark,
   getCurrentTime,
+  portraitMobile = false,
 }) {
   const seekBarRef = useRef(null);
   const volumeBarRef = useRef(null);
@@ -187,6 +188,107 @@ export default function Controls({
     timeDisplayMode === 'remaining'
       ? formatRemainingTime(currentTime, duration)
       : `${formatTime(currentTime)} / ${formatTime(duration)}`;
+
+  const handleSeekPointerDown = useCallback(
+    (e) => {
+      setIsSeeking(true);
+      const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+      if (clientX == null) return;
+      const rect = seekBarRef.current?.getBoundingClientRect();
+      if (!rect || !duration) return;
+      const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+      onSeek((x / rect.width) * duration);
+
+      const handleMove = (ev) => {
+        const moveX = ev.clientX ?? ev.touches?.[0]?.clientX;
+        if (moveX == null) return;
+        const r = seekBarRef.current?.getBoundingClientRect();
+        if (!r || !duration) return;
+        const mx = Math.max(0, Math.min(moveX - r.left, r.width));
+        onSeek((mx / r.width) * duration);
+      };
+
+      const handleUp = () => {
+        setIsSeeking(false);
+        window.removeEventListener('mousemove', handleMove);
+        window.removeEventListener('mouseup', handleUp);
+        window.removeEventListener('touchmove', handleMove);
+        window.removeEventListener('touchend', handleUp);
+      };
+
+      window.addEventListener('mousemove', handleMove);
+      window.addEventListener('mouseup', handleUp);
+      window.addEventListener('touchmove', handleMove, { passive: true });
+      window.addEventListener('touchend', handleUp);
+    },
+    [duration, onSeek]
+  );
+
+  if (portraitMobile) {
+    return (
+      <div className="controls-portrait">
+        {onBack && (
+          <div className="controls-portrait__back">
+            <button type="button" onClick={onBack} className="player-back-btn">
+              <ChevronLeft size={14} />
+              <span className="player-back-btn__label">{backLabel}</span>
+            </button>
+          </div>
+        )}
+
+        <div
+          ref={seekBarRef}
+          className={`seek-bar seek-bar--mobile${isSeeking ? ' seek-bar--seeking' : ''}`}
+          onPointerDown={handleSeekPointerDown}
+        >
+          <div className="seek-bar__track">
+            <div className="seek-bar__buffered" style={{ width: `${bufferedPercent}%` }} />
+            <div className="seek-bar__progress" style={{ width: `${progress}%` }} />
+          </div>
+          <div className="seek-bar__thumb seek-bar__thumb--mobile" style={{ left: `calc(${progress}% - 8px)` }} />
+        </div>
+
+        <div className="controls-portrait__time-row">
+          <button type="button" onClick={toggleTimeDisplay} className="time-display">
+            {timeDisplay}
+          </button>
+          <SpeedControl speed={speed} onSpeedChange={onSpeedChange} />
+        </div>
+
+        <div className="controls-portrait__main">
+          <button type="button" onClick={() => onSeek(Math.max(0, currentTime - 10))} className="skip-btn" aria-label="Skip back 10 seconds">
+            <SkipBack size={20} />
+            <span>10</span>
+          </button>
+          <button type="button" onClick={onTogglePlay} className="play-btn-mobile" aria-label={isPlaying ? 'Pause' : 'Play'}>
+            {isPlaying ? <Pause size={24} fill="#000" color="#000" /> : <Play size={24} fill="#000" color="#000" />}
+          </button>
+          <button type="button" onClick={() => onSeek(Math.min(duration, currentTime + 10))} className="skip-btn" aria-label="Skip forward 10 seconds">
+            <SkipForward size={20} />
+            <span>10</span>
+          </button>
+        </div>
+
+        <div className="controls-portrait__secondary">
+          <button type="button" onClick={onToggleMute} className={`${BTN_ICON} touch-target`} aria-label="Volume">
+            {effectiveVolume === 0 ? <VolumeX size={20} /> : effectiveVolume < 0.5 ? <Volume1 size={20} /> : <Volume2 size={20} />}
+          </button>
+          <button type="button" onClick={onToggleLoop} className={`${BTN_ICON} touch-target loop-btn${loop ? ' loop-btn--active' : ''}`} aria-label="Loop">
+            <Repeat size={20} />
+          </button>
+          <button type="button" onClick={subtitles.toggle} className={`${BTN_ICON} touch-target cc-btn${subtitles.enabled ? ' cc-btn--active' : ''}`} aria-label="Subtitles">
+            <Subtitles size={20} />
+          </button>
+          <button type="button" onClick={onToggleAmbient} className={`${BTN_ICON} touch-target ambient-btn${ambientEnabled ? ' ambient-btn--active' : ''}`} aria-label="Ambient">
+            <Sparkles size={20} />
+          </button>
+          <button type="button" onClick={onToggleFullscreen} className={`${BTN_ICON} touch-target`} aria-label="Fullscreen">
+            {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
