@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import { ChevronLeft, FileVideo, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { FileVideo, ArrowRight } from 'lucide-react';
 import { useFolders } from '../hooks/useFolders';
 import { getRecentFiles } from '../utils/storage';
 import { formatFileSize } from '../utils/formatFileSize';
@@ -9,9 +10,9 @@ import {
   VIDEO_PICKER_OPTIONS,
   warmRecentHandleCache,
 } from '../utils/fileHandles';
+import Navbar from '../components/Navbar';
 import FolderCard from '../components/FolderCard';
 import NewFolderModal from '../components/NewFolderModal';
-import InstallBanner from '../components/InstallBanner';
 import { BTN_PRIMARY, BTN_SECONDARY } from '../utils/buttonClasses';
 
 function FolderCardSkeleton() {
@@ -28,15 +29,13 @@ function truncateName(name, max = 26) {
 }
 
 export default function Library({
-  onBack,
-  onOpenFolder,
-  onFolderCreated,
   onPlayFile,
   onPlayUrl,
   installPrompt,
   onInstall,
   showToast,
 }) {
+  const navigate = useNavigate();
   const { folders, fileCounts, loading, createFolder, renameFolder, removeFolder } = useFolders();
   const [modalOpen, setModalOpen] = useState(false);
   const [recentFiles, setRecentFiles] = useState(() => getRecentFiles());
@@ -82,33 +81,30 @@ export default function Library({
   const handleCreate = async (name) => {
     const folder = await createFolder(name);
     setModalOpen(false);
-    if (folder) onFolderCreated(folder.id);
+    if (folder) navigate(`/library/${folder.id}`);
   };
 
-  return (
-    <div className="library-screen">
-      <InstallBanner installPrompt={installPrompt} onInstall={onInstall} />
-      <header className="library-header">
-        <button type="button" className="folder-view-back" onClick={onBack}>
-          <ChevronLeft size={18} />
-          Home
-        </button>
-        <div className="library-brand-wrap">
-          <h1 className="library-brand">Auva Play</h1>
-        </div>
-        <button type="button" className={BTN_SECONDARY} onClick={() => setModalOpen(true)}>
-          New Folder
-        </button>
-      </header>
+  const handleOpenFolder = useCallback(
+    (folderId) => {
+      navigate(`/library/${folderId}`);
+    },
+    [navigate]
+  );
 
-      <main className="library-body custom-scroll">
+  const hasFolders = !loading && folders.length > 0;
+
+  return (
+    <div className="library-screen page-with-navbar">
+      <Navbar installPrompt={installPrompt} onInstall={onInstall} />
+
+      <main className="library-body custom-scroll page-content">
         {loading ? (
           <div className="library-grid">
             <FolderCardSkeleton />
             <FolderCardSkeleton />
             <FolderCardSkeleton />
           </div>
-        ) : folders.length === 0 ? (
+        ) : !hasFolders ? (
           <div className="library-empty-simple">
             <p className="library-empty-title">No folders yet</p>
             <p className="library-empty-text">Create a folder to organize your lecture videos</p>
@@ -118,14 +114,19 @@ export default function Library({
           </div>
         ) : (
           <>
-            <p className="library-section-title">Folders</p>
+            <div className="library-toolbar">
+              <p className="library-section-title">Library</p>
+              <button type="button" className={BTN_SECONDARY} onClick={() => setModalOpen(true)}>
+                New Folder
+              </button>
+            </div>
             <div className="library-grid">
               {folders.map((folder) => (
                 <FolderCard
                   key={folder.id}
                   folder={folder}
                   fileCount={fileCounts[folder.id] ?? 0}
-                  onOpen={onOpenFolder}
+                  onOpen={handleOpenFolder}
                   onRename={renameFolder}
                   onDelete={removeFolder}
                 />

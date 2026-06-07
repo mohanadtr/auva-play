@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft } from 'lucide-react';
+import { useParams } from 'react-router-dom';
 import { getFolder } from '../utils/db';
 import { openFileWithPermission } from '../utils/openFileWithPermission';
 import { useFolderFiles } from '../hooks/useFolderFiles';
@@ -7,13 +7,15 @@ import {
   supportsFileSystemAccess,
   VIDEO_PICKER_OPTIONS_MULTIPLE,
 } from '../utils/fileHandles';
+import Navbar from '../components/Navbar';
 import VideoCard from '../components/VideoCard';
 import VideoCardSkeleton from '../components/VideoCardSkeleton';
 import { BTN_PRIMARY } from '../utils/buttonClasses';
 
 const ACCEPTED_EXT = ['.mp4', '.webm', '.mkv', '.mov'];
 
-export default function FolderView({ folderId, onBack, onPlayFile, showToast }) {
+export default function FolderView({ onPlayFile, showToast }) {
+  const { folderId } = useParams();
   const [folderName, setFolderName] = useState('');
   const { files, loading, addFiles, removeFile, resolveHandle } = useFolderFiles(folderId);
 
@@ -84,19 +86,17 @@ export default function FolderView({ folderId, onBack, onPlayFile, showToast }) 
   );
 
   return (
-    <div className="folder-view-screen">
-      <header className="folder-view-header">
-        <button type="button" className="folder-view-back" onClick={onBack}>
-          <ChevronLeft size={18} />
-          Library
-        </button>
+    <div className="folder-view-screen page-with-navbar">
+      <Navbar />
+
+      <div className="folder-view-heading">
         <h1 className="folder-view-title">{folderName}</h1>
         <button type="button" className={BTN_PRIMARY} onClick={handleAddFiles}>
           Add files
         </button>
-      </header>
+      </div>
 
-      <main className="folder-view-body custom-scroll">
+      <main className="folder-view-body custom-scroll page-content">
         {loading ? (
           <div className="video-card-grid">
             <VideoCardSkeleton />
