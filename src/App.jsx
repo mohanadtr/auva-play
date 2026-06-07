@@ -1,11 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Download } from 'lucide-react';
+import { Routes, Route } from 'react-router-dom';
 import { addRecentFile, clearBookmarkStorage } from './utils/storage';
 import { saveFileHandle } from './utils/fileHandles';
 import { getFolderFiles, getFolderFile, openFolderFile } from './utils/db';
 import { useToast } from './hooks/useToast';
 import { useLaunchQueue } from './hooks/useLaunchQueue';
-import { BTN_SECONDARY } from './utils/buttonClasses';
 import Home from './screens/Home';
 import Library from './screens/Library';
 import FolderView from './screens/FolderView';
@@ -13,8 +12,7 @@ import Player from './components/Player';
 import Toast from './components/Toast';
 
 export default function App() {
-  const [screen, setScreen] = useState('home');
-  const [activeFolderId, setActiveFolderId] = useState(null);
+  const [playerOpen, setPlayerOpen] = useState(false);
   const [videoSource, setVideoSource] = useState(null);
   const [fromFolder, setFromFolder] = useState(false);
   const [folderName, setFolderName] = useState(null);
@@ -58,18 +56,16 @@ export default function App() {
     if (folderMeta) {
       const files = await getFolderFiles(folderMeta.folderId);
       setFromFolder(true);
-      setActiveFolderId(folderMeta.folderId);
       setFolderName(folderMeta.folderName);
       setFolderFileId(folderMeta.folderFileId);
       setFolderFiles(files);
     } else {
       setFromFolder(false);
-      setActiveFolderId(null);
       setFolderName(null);
       setFolderFileId(null);
       setFolderFiles([]);
     }
-    setScreen('player');
+    setPlayerOpen(true);
   }, []);
 
   const handleLaunchedFile = useCallback(async (file, fileHandle) => {
@@ -90,11 +86,10 @@ export default function App() {
     setVideoSource({ type: 'file', file, filename: file.name });
     addRecentFile({ name: file.name, size: file.size });
     setFromFolder(false);
-    setActiveFolderId(null);
     setFolderName(null);
     setFolderFileId(null);
     setFolderFiles([]);
-    setScreen('player');
+    setPlayerOpen(true);
   }, []);
 
   useLaunchQueue(handleLaunchedFile);
@@ -106,18 +101,17 @@ export default function App() {
     setVideoSource({ type: 'url', url, filename });
     addRecentFile({ name: filename, size: 0, url });
     setFromFolder(false);
-    setActiveFolderId(null);
     setFolderName(null);
     setFolderFileId(null);
     setFolderFiles([]);
-    setScreen('player');
+    setPlayerOpen(true);
   }, []);
 
   const handleVideoLoadError = useCallback(
     (sourceType) => {
       if (sourceType === 'url') {
         setUrlLoadError('Could not load video from this URL.');
-        setScreen('home');
+        setPlayerOpen(false);
         setVideoSource(null);
         return;
       }
@@ -126,35 +120,9 @@ export default function App() {
     [showToast]
   );
 
-  const goHome = useCallback(() => {
-    setScreen('home');
-    setVideoSource(null);
-    setActiveFolderId(null);
-    setFromFolder(false);
-    setFolderName(null);
-    setFolderFileId(null);
-    setFolderFiles([]);
+  const closePlayer = useCallback(() => {
+    setPlayerOpen(false);
   }, []);
-
-  const goToLibrary = useCallback(() => {
-    setScreen('library');
-    setVideoSource(null);
-  }, []);
-
-  const goToFolder = useCallback((folderId) => {
-    setScreen('folder');
-    setActiveFolderId(folderId);
-    setVideoSource(null);
-  }, []);
-
-  const handlePlayerBack = useCallback(() => {
-    if (fromFolder && activeFolderId) {
-      setScreen('folder');
-      setVideoSource(null);
-    } else {
-      goHome();
-    }
-  }, [fromFolder, activeFolderId, goHome]);
 
   const playAdjacentFile = useCallback(
     async (direction) => {
@@ -194,55 +162,50 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      {installPrompt && screen === 'home' && (
-        <button type="button" onClick={handleInstall} className={`${BTN_SECONDARY} install-btn`}>
-          <Download size={14} />
-          Install App
-        </button>
-      )}
-
-      {screen === 'home' && (
-        <Home
-          onPlayFile={(file, handle) => playFile(file, handle)}
-          onPlayUrl={playUrl}
-          onOpenLibrary={goToLibrary}
-          urlLoadError={urlLoadError}
-          onClearUrlError={() => setUrlLoadError('')}
-          showToast={showToast}
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <Home
+              onPlayFile={(file, handle) => playFile(file, handle)}
+              onPlayUrl={playUrl}
+              installPrompt={installPrompt}
+              onInstall={handleInstall}
+              urlLoadError={urlLoadError}
+              onClearUrlError={() => setUrlLoadError('')}
+              showToast={showToast}
+            />
+          }
         />
-      )}
-
-      {screen === 'library' && (
-        <Library
-          onBack={goHome}
-          onOpenFolder={goToFolder}
-          onFolderCreated={goToFolder}
-          onPlayFile={(file, handle) => playFile(file, handle)}
-          onPlayUrl={playUrl}
-          installPrompt={installPrompt}
-          onInstall={handleInstall}
-          showToast={showToast}
+        <Route
+          path="/library"
+          element={
+            <Library
+              onPlayFile={(file, handle) => playFile(file, handle)}
+              onPlayUrl={playUrl}
+              installPrompt={installPrompt}
+              onInstall={handleInstall}
+              showToast={showToast}
+            />
+          }
         />
-      )}
-
-      {screen === 'folder' && activeFolderId && (
-        <FolderView
-          folderId={activeFolderId}
-          onBack={goToLibrary}
-          onPlayFile={playFile}
-          showToast={showToast}
+        <Route
+          path="/library/:folderId"
+          element={<FolderView onPlayFile={playFile} showToast={showToast} />}
         />
-      )}
+      </Routes>
 
-      {screen === 'player' && videoSource && (
-        <Player
-          source={videoSource}
-          onBack={handlePlayerBack}
-          backLabel={fromFolder ? folderName : 'Home'}
-          folderPlayback={folderPlayback}
-          keyboardEnabled
-          onVideoLoadError={handleVideoLoadError}
-        />
+      {playerOpen && videoSource && (
+        <div className="player-overlay">
+          <Player
+            source={videoSource}
+            onBack={closePlayer}
+            backLabel={fromFolder ? folderName : 'Home'}
+            folderPlayback={folderPlayback}
+            keyboardEnabled
+            onVideoLoadError={handleVideoLoadError}
+          />
+        </div>
       )}
 
       <Toast toast={toast} />
